@@ -1,1 +1,2421 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IELTS Speaking Dashboard</title>
 
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --text:#202124;
+      --muted:#70757a;
+      --border:#e3e5e8;
+      --accent:#635bff;
+      --accent-light:#efefff;
+      --green:#17825c;
+      --green-light:#e9f7f0;
+      --yellow:#9a6900;
+      --yellow-light:#fff4d3;
+      --red:#b42318;
+      --red-light:#feeceb;
+    }
+
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:
+        -apple-system,BlinkMacSystemFont,
+        "Segoe UI","PingFang SC",
+        "Microsoft YaHei",sans-serif;
+    }
+
+    button,input,textarea,select{
+      font:inherit;
+    }
+
+    .wrap{
+      max-width:1100px;
+      margin:auto;
+      padding:24px 16px 60px;
+    }
+
+    .header{
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      align-items:flex-start;
+    }
+
+    .title{
+      font-size:28px;
+      font-weight:700;
+      margin:8px 0 4px;
+    }
+
+    .muted{
+      color:var(--muted);
+    }
+
+    .small{
+      font-size:13px;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:4px 9px;
+      border-radius:999px;
+      font-size:12px;
+      background:var(--accent-light);
+      color:var(--accent);
+    }
+
+    .green{
+      background:var(--green-light);
+      color:var(--green);
+    }
+
+    .yellow{
+      background:var(--yellow-light);
+      color:var(--yellow);
+    }
+
+    .red{
+      background:var(--red-light);
+      color:var(--red);
+    }
+
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+      margin-top:22px;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:16px;
+    }
+
+    .metric-value{
+      font-size:25px;
+      font-weight:700;
+      margin-top:6px;
+    }
+
+    .tabs{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:22px 0;
+    }
+
+    .tab,.btn{
+      border:1px solid var(--border);
+      background:#fff;
+      padding:9px 13px;
+      border-radius:11px;
+      cursor:pointer;
+    }
+
+    .tab.active,.btn.primary{
+      background:var(--accent);
+      color:white;
+      border-color:var(--accent);
+    }
+
+    .panel{
+      display:none;
+    }
+
+    .panel.active{
+      display:block;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:14px;
+    }
+
+    .row{
+      padding:12px 0;
+      border-bottom:1px solid var(--border);
+    }
+
+    .row:last-child{
+      border-bottom:0;
+    }
+
+    .rowhead{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-start;
+    }
+
+    .callout{
+      padding:15px;
+      border-radius:14px;
+      background:var(--accent-light);
+      border:1px solid #dedcff;
+    }
+
+    textarea,input,select{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:11px;
+      padding:10px 11px;
+      background:#fff;
+    }
+
+    textarea{
+      min-height:220px;
+      resize:vertical;
+      font-family:monospace;
+      font-size:12px;
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:11px;
+    }
+
+    .progress{
+      height:10px;
+      border-radius:999px;
+      overflow:hidden;
+      background:#eceef2;
+    }
+
+    .progress div{
+      height:100%;
+      background:var(--accent);
+    }
+
+    .score-row{
+      display:grid;
+      grid-template-columns:110px 1fr 40px;
+      gap:10px;
+      align-items:center;
+      margin:12px 0;
+    }
+
+    .notice{
+      margin-top:10px;
+      padding:10px 12px;
+      border-radius:10px;
+      font-size:13px;
+    }
+
+    .notice.ok{
+      background:var(--green-light);
+      color:var(--green);
+    }
+
+    .notice.bad{
+      background:var(--red-light);
+      color:var(--red);
+    }
+
+    @media(max-width:760px){
+      .metrics,.grid2{
+        grid-template-columns:1fr 1fr;
+      }
+
+      .header{
+        flex-direction:column;
+      }
+    }
+
+    @media(max-width:520px){
+      .metrics,.grid2{
+        grid-template-columns:1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="header">
+    <div>
+      <span class="badge">IELTS SPEAKING</span>
+      <div class="title">Speaking Dashboard</div>
+      <div class="muted">
+        Dashboard 管计划和记录 · ChatGPT Live 负责口语练习
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="liveTop">
+        生成今日 Live Context
+      </button>
+      <button class="btn" id="syncTop">
+        同步练习结果
+      </button>
+    </div>
+  </div>
+
+  <div class="metrics" id="metrics"></div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="today">Today</button>
+    <button class="tab" data-tab="review">Review</button>
+    <button class="tab" data-tab="bank">Part 2 Bank</button>
+    <button class="tab" data-tab="history">History</button>
+    <button class="tab" data-tab="errors">Errors</button>
+    <button class="tab" data-tab="progress">Progress</button>
+    <button class="tab" data-tab="sync">Live Sync</button>
+    <button class="tab" data-tab="data">Data</button>
+  </div>
+
+  <!-- TODAY -->
+  <section class="panel active" id="today">
+
+    <div class="callout">
+      <strong>Day 7 · 2026/07/29</strong>
+      <div class="small" style="margin-top:5px;">
+        Day 6 已归档完成。今天先做复习，再进入新任务。
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:14px;">
+
+      <div class="card">
+        <h2>到期 Part 2 复习</h2>
+        <div id="todayReviews"></div>
+      </div>
+
+      <div class="card">
+        <h2>Part 1 · Music + Singing</h2>
+
+        <div class="row">
+          1. Do you like music?
+        </div>
+
+        <div class="row">
+          2. What kinds of music do you listen to?
+        </div>
+
+        <div class="row">
+          3. Did you like singing when you were a child?
+        </div>
+
+        <div class="row">
+          4. Do you like singing now?
+        </div>
+      </div>
+
+    </div>
+
+    <div class="grid2" style="margin-top:14px;">
+
+      <div class="card">
+        <div class="small muted">Part 2 · Deep Practice</div>
+        <h2>给别人建议</h2>
+
+        <p>
+          Describe a time when you gave advice to others
+        </p>
+
+        <div class="small muted">
+          • When it was<br>
+          • To whom you gave the advice<br>
+          • What the advice was<br>
+          • And explain why you gave the advice
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="small muted">Part 2 · Transfer</div>
+        <h2>鼓励别人做不愿做的事</h2>
+
+        <p>
+          Describe a time when you encouraged someone to do
+          something that he/she didn't want to do
+        </p>
+
+        <div class="small muted">
+          • Who he or she is<br>
+          • What you encouraged him/her to do<br>
+          • How he/she reacted<br>
+          • And explain why you encouraged him/her to do it
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h2>Part 3</h2>
+
+      <div class="row">
+        <strong>Question 1</strong><br>
+        Should people prepare before giving advice?
+      </div>
+
+      <div class="row">
+        <strong>Question 2</strong><br>
+        How can leaders encourage their employees?
+      </div>
+    </div>
+
+  </section>
+
+  <!-- REVIEW -->
+  <section class="panel" id="review">
+
+    <div class="card">
+      <h2>动态复习队列</h2>
+      <div id="reviewQueue"></div>
+    </div>
+
+  </section>
+
+  <!-- BANK -->
+  <section class="panel" id="bank">
+
+    <div class="card">
+
+      <div class="grid2">
+        <input
+          id="search"
+          placeholder="搜索中文或英文题目"
+        >
+
+        <select id="statusFilter">
+          <option value="all">全部状态</option>
+          <option value="yellow">Yellow</option>
+          <option value="green">Green</option>
+          <option value="new">未首练</option>
+        </select>
+      </div>
+
+      <div id="bankList"></div>
+
+    </div>
+
+  </section>
+
+  <!-- HISTORY -->
+  <section class="panel" id="history">
+
+    <div class="card">
+      <h2>真实练习历史</h2>
+
+      <div class="small muted">
+        Curriculum Day 与真实日期分开。
+        停练日不会被伪造成训练完成。
+      </div>
+
+      <div id="historyList"></div>
+    </div>
+
+  </section>
+
+  <!-- ERRORS -->
+  <section class="panel" id="errors">
+
+    <div class="card">
+      <h2>个人错误库</h2>
+      <div id="errorList"></div>
+    </div>
+
+  </section>
+
+  <!-- PROGRESS -->
+  <section class="panel" id="progress">
+
+    <div class="metrics" id="scoreMetrics"></div>
+
+    <div class="card" style="margin-top:14px;">
+      <h2>Part 2 首练覆盖率</h2>
+
+      <div class="rowhead">
+        <span class="muted">已首练</span>
+        <strong id="coverageLabel"></strong>
+      </div>
+
+      <div class="progress" style="margin-top:10px;">
+        <div id="coverageBar"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h2>当前四项能力</h2>
+      <div id="scoreBars"></div>
+    </div>
+
+  </section>
+
+  <!-- SYNC -->
+  <section class="panel" id="sync">
+
+    <div class="grid2">
+
+      <div class="card">
+        <h2>练习前 → ChatGPT Live</h2>
+
+        <div class="small muted">
+          把这里生成的 Context Code 给我，
+          我就严格按照看板任务带你练。
+        </div>
+
+        <textarea id="contextOutput"></textarea>
+
+        <div class="actions">
+          <button class="btn primary" id="generateContext">
+            生成 Context
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>练习后 → Dashboard</h2>
+
+        <div class="small muted">
+          把我训练结束后给你的 SESSION_RESULT_V1
+          粘贴到下面。
+        </div>
+
+        <textarea
+          id="syncInput"
+          placeholder="粘贴 Session Sync Code"
+        ></textarea>
+
+        <div class="actions">
+          <button class="btn primary" id="previewSync">
+            预览变更
+          </button>
+          <button class="btn" id="demoSync">
+            填入示例
+          </button>
+        </div>
+
+        <div id="syncMessage"></div>
+      </div>
+
+    </div>
+
+    <div
+      class="card"
+      id="previewCard"
+      style="display:none;margin-top:14px;"
+    >
+      <h2>同步预览</h2>
+
+      <div id="previewList"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="confirmSync">
+          确认写入
+        </button>
+
+        <button class="btn" id="cancelSync">
+          取消
+        </button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- DATA -->
+  <section class="panel" id="data">
+
+    <div class="grid2">
+
+      <div class="card">
+        <h2>数据备份</h2>
+
+        <div class="small muted">
+          当前版本保存在浏览器中。
+          可以定期导出 JSON 备份。
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="exportBtn">
+            导出备份
+          </button>
+
+          <button class="btn" id="resetBtn">
+            恢复初始数据
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>恢复备份</h2>
+
+        <textarea
+          id="backupInput"
+          placeholder="粘贴备份 JSON"
+        ></textarea>
+
+        <button class="btn primary" id="importBtn">
+          恢复
+        </button>
+
+        <div id="backupMessage"></div>
+      </div>
+
+    </div>
+
+  </section>
+
+</div>
+
+<script>
+const STORAGE_KEY = "ielts-speaking-dashboard-v1";
+const TOTAL_PART2 = 55;
+
+const initialData = {
+
+  meta:{
+    currentDate:"2026-07-29",
+    curriculumDay:7,
+    lastCompletedDay:6,
+    target:6.5,
+    exam:"2026-08-29 / 2026-08-30"
+  },
+
+  questions:[
+
+    {
+      id:"P001",
+      zh:"长期目标/追求",
+      en:"Describe a long-term goal/ambition you would like to achieve.",
+      first:"2026-07-21",
+      status:"yellow",
+      done:["D0","D1","D3","D7"],
+      skipped:[],
+      keywords:[
+        "Germany",
+        "LL.M.",
+        "English",
+        "personal growth",
+        "international career"
+      ]
+    },
+
+    {
+      id:"P002",
+      zh:"重要决定",
+      en:"Describe an important decision that you made.",
+      first:"2026-07-22",
+      status:"yellow",
+      done:["D0","D1","D3"],
+      skipped:[],
+      keywords:[
+        "stable job",
+        "Germany",
+        "personal growth",
+        "career"
+      ]
+    },
+
+    {
+      id:"P003",
+      zh:"改变计划",
+      en:"Describe a plan that you had to change recently.",
+      first:"2026-07-22",
+      status:"yellow",
+      done:["D0","D1","D3"],
+      skipped:[],
+      keywords:[
+        "hometown",
+        "stable life",
+        "predictable",
+        "Germany"
+      ]
+    },
+
+    {
+      id:"P004",
+      zh:"近期改变",
+      en:"Describe a change that you made recently.",
+      first:"2026-07-23",
+      status:"yellow",
+      done:["D0","D3"],
+      skipped:["D1"],
+      keywords:[
+        "sleep problems",
+        "swimming",
+        "weekend",
+        "clear my mind"
+      ]
+    },
+
+    {
+      id:"P005",
+      zh:"改变重要想法",
+      en:"Describe a time when you changed an important opinion of yours.",
+      first:"2026-07-23",
+      status:"green",
+      done:["D0","D3"],
+      skipped:["D1"],
+      keywords:[
+        "stable life",
+        "predictable",
+        "personal growth",
+        "Germany"
+      ]
+    },
+
+    {
+      id:"P006",
+      zh:"完美工作",
+      en:"Describe a perfect job you would like to have in the future.",
+      first:"2026-07-26",
+      status:"yellow",
+      done:["D0","D1"],
+      skipped:[],
+      keywords:[
+        "IP lawyer",
+        "international law firm",
+        "remote work",
+        "work-life balance",
+        "annual leave"
+      ]
+    },
+
+    {
+      id:"P007",
+      zh:"短期海外工作",
+      en:"Describe a short-term job you want to have in a foreign country.",
+      first:"2026-07-26",
+      status:"yellow",
+      done:["D0","D1"],
+      skipped:[],
+      keywords:[
+        "German law firm",
+        "IP paralegal",
+        "international experience",
+        "legal culture"
+      ]
+    },
+
+    {
+      id:"P008",
+      zh:"克服困难成功的人",
+      en:"Describe a person who met difficulties but succeeded.",
+      first:"2026-07-27",
+      status:"yellow",
+      done:["D0","D1"],
+      skipped:[],
+      keywords:[
+        "physics",
+        "parents",
+        "English literature",
+        "retake Gaokao",
+        "Fudan",
+        "PhD"
+      ]
+    },
+
+    {
+      id:"P009",
+      zh:"在团队中工作",
+      en:"Describe a time when you worked in a group.",
+      first:"2026-07-27",
+      status:"yellow",
+      done:["D0","D1"],
+      skipped:[],
+      keywords:[
+        "university",
+        "movie presentation",
+        "introverted",
+        "teammates",
+        "good grade"
+      ]
+    },
+
+    {
+      id:"P010",
+      zh:"给别人建议",
+      en:"Describe a time when you gave advice to others",
+      first:null,
+      status:"new",
+      done:[],
+      skipped:[],
+      keywords:[]
+    },
+
+    {
+      id:"P011",
+      zh:"鼓励别人做不愿做的事",
+      en:"Describe a time when you encouraged someone to do something that he/she didn't want to do",
+      first:null,
+      status:"new",
+      done:[],
+      skipped:[],
+      keywords:[]
+    }
+  ],
+
+  history:[
+
+    {
+      day:1,
+      date:"2026-07-21",
+      status:"completed",
+      part1:"Work + Daily routine",
+      part2:["P001"]
+    },
+
+    {
+      day:2,
+      date:"2026-07-22",
+      status:"completed",
+      part1:"Life Stages + Morning time",
+      part2:["P002","P003"]
+    },
+
+    {
+      day:3,
+      date:"2026-07-23",
+      status:"completed",
+      part1:"Hometown + The city you live in",
+      part2:["P004","P005"]
+    },
+
+    {
+      day:null,
+      date:"2026-07-24",
+      status:"rest",
+      part1:"",
+      part2:[],
+      note:"停练"
+    },
+
+    {
+      day:null,
+      date:"2026-07-25",
+      status:"rest",
+      part1:"",
+      part2:[],
+      note:"停练"
+    },
+
+    {
+      day:4,
+      date:"2026-07-26",
+      status:"completed",
+      part1:"The area you live in + Home/Accommodation",
+      part2:["P006","P007"]
+    },
+
+    {
+      day:5,
+      date:"2026-07-27",
+      status:"completed",
+      part1:"Teachers + Childhood activities",
+      part2:["P008","P009"]
+    },
+
+    {
+      day:6,
+      date:"2026-07-28",
+      status:"completed",
+      part1:"Social media + Websites",
+      part2:[],
+      note:"查缺补漏日，无新增 Part 2"
+    }
+  ],
+
+  errors:[
+
+    {
+      wrong:"in my age",
+      correct:"at my age",
+      type:"Preposition",
+      count:4
+    },
+
+    {
+      wrong:"personal grow up",
+      correct:"personal growth",
+      type:"Word choice",
+      count:3
+    },
+
+    {
+      wrong:"give up about a dream",
+      correct:"give up on a dream",
+      type:"Preposition",
+      count:3
+    },
+
+    {
+      wrong:"decide to speaking",
+      correct:"decide to speak",
+      type:"Verb form",
+      count:3
+    },
+
+    {
+      wrong:"Germany law firm",
+      correct:"German law firm",
+      type:"Word choice",
+      count:2
+    }
+  ],
+
+  scores:[
+
+    {
+      day:3,
+      fluency:5.7,
+      lexical:5.8,
+      grammar:5.2,
+      pronunciation:6.0
+    },
+
+    {
+      day:4,
+      fluency:5.9,
+      lexical:6.0,
+      grammar:5.3,
+      pronunciation:6.0
+    },
+
+    {
+      day:5,
+      fluency:5.9,
+      lexical:6.0,
+      grammar:5.4,
+      pronunciation:6.0
+    },
+
+    {
+      day:6,
+      fluency:6.0,
+      lexical:6.0,
+      grammar:5.5,
+      pronunciation:6.0
+    }
+  ],
+
+  importedSessions:[]
+};
+
+function clone(value){
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadData(){
+
+  try{
+
+    const saved =
+      localStorage.getItem(STORAGE_KEY);
+
+    if(saved){
+      return JSON.parse(saved);
+    }
+
+  }catch(e){}
+
+  return clone(initialData);
+}
+
+let state = loadData();
+let pendingSync = null;
+
+function saveData(){
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(state)
+  );
+}
+
+function addDays(dateString,days){
+
+  const date =
+    new Date(dateString + "T00:00:00");
+
+  date.setDate(
+    date.getDate() + days
+  );
+
+  return date
+    .toISOString()
+    .slice(0,10);
+}
+
+function dateDiff(from,to){
+
+  return Math.round(
+    (
+      new Date(to+"T00:00:00") -
+      new Date(from+"T00:00:00")
+    ) /
+    86400000
+  );
+}
+
+function getQuestion(id){
+
+  return state.questions.find(
+    q => q.id === id
+  );
+}
+
+const stages = [
+  ["D1",1],
+  ["D3",3],
+  ["D7",7],
+  ["D14",14]
+];
+
+function getReviewQueue(){
+
+  const result = [];
+
+  state.questions.forEach(q=>{
+
+    if(!q.first){
+      return;
+    }
+
+    stages.forEach(([stage,offset])=>{
+
+      if(q.done.includes(stage)){
+        return;
+      }
+
+      if(q.skipped.includes(stage)){
+        return;
+      }
+
+      const due =
+        addDays(q.first,offset);
+
+      result.push({
+
+        questionId:q.id,
+        zh:q.zh,
+        en:q.en,
+        stage:stage,
+        due:due,
+
+        days:
+          dateDiff(
+            state.meta.currentDate,
+            due
+          ),
+
+        keywords:q.keywords
+      });
+
+    });
+
+  });
+
+  return result.sort(
+    (a,b)=>a.due.localeCompare(b.due)
+  );
+}
+
+function renderMetrics(){
+
+  const coverage =
+    state.questions.filter(
+      q=>q.first
+    ).length;
+
+  const due =
+    getReviewQueue()
+      .filter(r=>r.days<=0)
+      .length;
+
+  document
+    .querySelector("#metrics")
+    .innerHTML = `
+
+    <div class="card">
+      <div class="small muted">
+        Current Day
+      </div>
+
+      <div class="metric-value">
+        Day ${state.meta.curriculumDay}
+      </div>
+
+      <div class="small muted">
+        Last completed:
+        Day ${state.meta.lastCompletedDay}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="small muted">
+        Part 2 首练覆盖
+      </div>
+
+      <div class="metric-value">
+        ${coverage} / ${TOTAL_PART2}
+      </div>
+
+      <div class="small muted">
+        ${
+          Math.round(
+            coverage/TOTAL_PART2*100
+          )
+        }%
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="small muted">
+        到期 / 逾期复习
+      </div>
+
+      <div class="metric-value">
+        ${due}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="small muted">
+        Speaking Target
+      </div>
+
+      <div class="metric-value">
+        ${state.meta.target}
+      </div>
+
+      <div class="small muted">
+        ${state.meta.exam}
+      </div>
+    </div>
+  `;
+}
+
+function renderTodayReviews(){
+
+  const reviews =
+    getReviewQueue()
+      .filter(r=>r.days<=0);
+
+  const box =
+    document.querySelector(
+      "#todayReviews"
+    );
+
+  if(!reviews.length){
+
+    box.innerHTML =
+      `<div class="muted">
+        今天没有待处理复习。
+      </div>`;
+
+    return;
+  }
+
+  box.innerHTML =
+    reviews.map(r=>{
+
+      let instruction = "";
+
+      if(r.stage==="D1"){
+        instruction =
+          "关键词：" +
+          r.keywords.join(" · ");
+      }
+
+      if(r.stage==="D3"){
+        instruction =
+          "完整重说";
+      }
+
+      if(r.stage==="D7"){
+        instruction =
+          "同一素材换角度回答";
+      }
+
+      if(r.stage==="D14"){
+        instruction =
+          "不看笔记随机检查";
+      }
+
+      return `
+
+        <div class="row">
+
+          <div class="rowhead">
+
+            <strong>
+              ${r.stage} · ${r.zh}
+            </strong>
+
+            ${
+              r.days<0
+              ?
+              `<span class="badge red">
+                overdue
+              </span>`
+              :
+              `<span class="badge">
+                today
+              </span>`
+            }
+
+          </div>
+
+          <div class="small muted"
+               style="margin-top:5px;">
+            ${r.en}
+          </div>
+
+          <div class="small"
+               style="margin-top:7px;">
+            ${instruction}
+          </div>
+
+        </div>
+      `;
+    }).join("");
+}
+
+function renderReview(){
+
+  const list =
+    getReviewQueue();
+
+  document
+    .querySelector("#reviewQueue")
+    .innerHTML =
+    list.map(r=>`
+
+      <div class="row">
+
+        <div class="rowhead">
+
+          <strong>
+            ${r.stage} · ${r.zh}
+          </strong>
+
+          <span class="badge ${
+            r.days<0
+            ? "red"
+            : r.days===0
+            ? "yellow"
+            : ""
+          }">
+
+            ${
+              r.days<0
+              ? Math.abs(r.days) +
+                "d overdue"
+
+              : r.days===0
+              ? "today"
+
+              : r.days +
+                "d later"
+            }
+
+          </span>
+
+        </div>
+
+        <div class="small muted"
+             style="margin-top:5px;">
+          ${r.due}
+        </div>
+
+      </div>
+
+    `).join("");
+}
+
+function statusBadge(status){
+
+  let cls="";
+
+  if(status==="yellow"){
+    cls="yellow";
+  }
+
+  if(status==="green"){
+    cls="green";
+  }
+
+  if(status==="red"){
+    cls="red";
+  }
+
+  return `
+    <span class="badge ${cls}">
+      ${
+        status==="new"
+        ? "NEW"
+        : status.toUpperCase()
+      }
+    </span>
+  `;
+}
+
+function renderBank(){
+
+  const search =
+    document
+      .querySelector("#search")
+      .value
+      .toLowerCase()
+      .trim();
+
+  const filter =
+    document
+      .querySelector("#statusFilter")
+      .value;
+
+  const list =
+    state.questions.filter(q=>{
+
+      const textMatch =
+        !search ||
+        q.zh.toLowerCase()
+          .includes(search) ||
+        q.en.toLowerCase()
+          .includes(search);
+
+      const statusMatch =
+        filter==="all" ||
+        q.status===filter;
+
+      return textMatch &&
+             statusMatch;
+    });
+
+  document
+    .querySelector("#bankList")
+    .innerHTML =
+    list.map(q=>{
+
+      const next =
+        getReviewQueue()
+          .find(
+            r=>
+              r.questionId===
+              q.id
+          );
+
+      return `
+
+        <div class="row">
+
+          <div class="rowhead">
+
+            <div>
+
+              <strong>
+                ${q.id} · ${q.zh}
+              </strong>
+
+              <div
+                class="small muted"
+                style="margin-top:5px;"
+              >
+                ${q.en}
+              </div>
+
+            </div>
+
+            ${statusBadge(q.status)}
+
+          </div>
+
+          <div
+            class="small"
+            style="margin-top:8px;"
+          >
+            First:
+            ${q.first || "—"}
+
+            · Next:
+
+            ${
+              next
+              ?
+              next.stage +
+              " / " +
+              next.due
+              :
+              "—"
+            }
+          </div>
+
+        </div>
+      `;
+    }).join("");
+}
+
+function renderHistory(){
+
+  document
+    .querySelector("#historyList")
+    .innerHTML =
+    [...state.history]
+    .reverse()
+    .map(h=>{
+
+      if(h.status==="rest"){
+
+        return `
+
+          <div class="row">
+
+            <div class="rowhead">
+
+              <strong>
+                REST DAY · ${h.date}
+              </strong>
+
+              <span class="badge">
+                REST
+              </span>
+
+            </div>
+
+            <div class="small muted">
+              ${h.note || ""}
+            </div>
+
+          </div>
+        `;
+      }
+
+      const part2 =
+        h.part2.length
+        ?
+        h.part2
+          .map(id=>{
+            const q =
+              getQuestion(id);
+
+            return q
+              ? q.zh
+              : id;
+          })
+          .join(" + ")
+        :
+        "0 道新题";
+
+      return `
+
+        <div class="row">
+
+          <div class="rowhead">
+
+            <strong>
+              Day ${h.day}
+              · ${h.date}
+            </strong>
+
+            <span class="badge green">
+              COMPLETED
+            </span>
+
+          </div>
+
+          <div class="small"
+               style="margin-top:6px;">
+            Part 1:
+            ${h.part1}
+          </div>
+
+          <div class="small muted"
+               style="margin-top:4px;">
+            New Part 2:
+            ${part2}
+          </div>
+
+          ${
+            h.note
+            ?
+            `<div class="small muted"
+                  style="margin-top:4px;">
+               ${h.note}
+             </div>`
+            :
+            ""
+          }
+
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderErrors(){
+
+  document
+    .querySelector("#errorList")
+    .innerHTML =
+    [...state.errors]
+    .sort(
+      (a,b)=>
+        b.count-a.count
+    )
+    .map(e=>`
+
+      <div class="row">
+
+        <div>
+          ❌ ${e.wrong}
+        </div>
+
+        <div
+          style="margin-top:5px;"
+        >
+          ✅ <strong>
+            ${e.correct}
+          </strong>
+        </div>
+
+        <div
+          class="small muted"
+          style="margin-top:5px;"
+        >
+          ${e.type}
+          · ${e.count} 次
+        </div>
+
+      </div>
+
+    `).join("");
+}
+
+function renderProgress(){
+
+  const coverage =
+    state.questions
+      .filter(q=>q.first)
+      .length;
+
+  document
+    .querySelector(
+      "#coverageLabel"
+    ).textContent =
+      `${coverage} / ${TOTAL_PART2}`;
+
+  document
+    .querySelector(
+      "#coverageBar"
+    ).style.width =
+      `${
+        coverage/
+        TOTAL_PART2*
+        100
+      }%`;
+
+  const latest =
+    state.scores[
+      state.scores.length-1
+    ];
+
+  const scores = [
+    ["Fluency",latest.fluency],
+    ["Lexical",latest.lexical],
+    ["Grammar",latest.grammar],
+    [
+      "Pronunciation",
+      latest.pronunciation
+    ]
+  ];
+
+  document
+    .querySelector(
+      "#scoreMetrics"
+    ).innerHTML =
+    scores.map(
+      ([name,value])=>`
+
+      <div class="card">
+
+        <div class="small muted">
+          ${name}
+        </div>
+
+        <div class="metric-value">
+          ${value.toFixed(1)}
+        </div>
+
+      </div>
+
+    `).join("");
+
+  document
+    .querySelector(
+      "#scoreBars"
+    ).innerHTML =
+    scores.map(
+      ([name,value])=>`
+
+      <div class="score-row">
+
+        <span>${name}</span>
+
+        <div class="progress">
+
+          <div
+            style="
+              width:
+              ${value/9*100}%
+            "
+          ></div>
+
+        </div>
+
+        <strong>
+          ${value.toFixed(1)}
+        </strong>
+
+      </div>
+
+    `).join("");
+}
+
+function createLiveContext(){
+
+  const reviews =
+    getReviewQueue()
+      .filter(r=>r.days<=0)
+      .map(r=>({
+
+        question_id:
+          r.questionId,
+
+        stage:
+          r.stage,
+
+        official_question:
+          r.en,
+
+        keywords:
+          r.stage==="D1"
+          ? r.keywords
+          : undefined
+      }));
+
+  return {
+
+    schema:
+      "LIVE_CONTEXT_V1",
+
+    date:
+      state.meta.currentDate,
+
+    curriculum_day:
+      state.meta.curriculumDay,
+
+    due_reviews:
+      reviews,
+
+    part1:{
+      topics:[
+        "Music",
+        "Singing"
+      ],
+
+      questions:[
+        "Do you like music?",
+        "What kinds of music do you listen to?",
+        "Did you like singing when you were a child?",
+        "Do you like singing now?"
+      ]
+    },
+
+    part2_deep:{
+      question_id:"P010",
+      official_question:
+        "Describe a time when you gave advice to others"
+    },
+
+    part2_transfer:{
+      question_id:"P011",
+      official_question:
+        "Describe a time when you encouraged someone to do something that he/she didn't want to do"
+    },
+
+    part3:[
+      "Should people prepare before giving advice?",
+      "How can leaders encourage their employees?"
+    ],
+
+    rules:[
+      "Finish all due Part 2 reviews first.",
+      "Part 1 should contain only 3-4 questions.",
+      "Use official English prompts only.",
+      "Do not interrupt the first Part 2 answer.",
+      "After deep Part 2 give full IELTS feedback and immediate D0 re-say.",
+      "Deep and transfer Part 2 enter separate D1/D3/D7/D14 queues.",
+      "At the end output Review Card and SESSION_RESULT_V1."
+    ]
+  };
+}
+
+function previewSync(){
+
+  const message =
+    document.querySelector(
+      "#syncMessage"
+    );
+
+  try{
+
+    const data =
+      JSON.parse(
+        document
+          .querySelector(
+            "#syncInput"
+          )
+          .value
+      );
+
+    if(
+      data.schema !==
+      "SESSION_RESULT_V1"
+    ){
+
+      throw new Error(
+        "不是有效的 SESSION_RESULT_V1"
+      );
+    }
+
+    if(!data.session_id){
+
+      throw new Error(
+        "缺少 session_id"
+      );
+    }
+
+    if(
+      state.importedSessions
+        .includes(
+          data.session_id
+        )
+    ){
+
+      throw new Error(
+        "这个 Session 已经同步过"
+      );
+    }
+
+    pendingSync=data;
+
+    const changes=[];
+
+    (data.reviews||[])
+      .forEach(r=>{
+
+        changes.push(
+          `✓ ${r.question_id} 完成 ${r.stage}`
+        );
+
+      });
+
+    (data.new_practice||[])
+      .forEach(p=>{
+
+        changes.push(
+          `＋ ${p.question_id} 新增首练`
+        );
+
+      });
+
+    (data.errors||[])
+      .forEach(e=>{
+
+        changes.push(
+          `↳ ${e.wrong} → ${e.correct}`
+        );
+
+      });
+
+    if(data.completed){
+
+      changes.push(
+        `✓ Day ${data.curriculum_day} 归档完成`
+      );
+    }
+
+    document
+      .querySelector(
+        "#previewList"
+      ).innerHTML =
+      changes
+        .map(
+          c=>
+          `<div class="row">
+             ${c}
+           </div>`
+        )
+        .join("");
+
+    document
+      .querySelector(
+        "#previewCard"
+      )
+      .style.display =
+        "block";
+
+    message.innerHTML = `
+      <div class="notice ok">
+        数据格式正确。
+        确认后才会真正更新看板。
+      </div>
+    `;
+
+  }catch(error){
+
+    pendingSync=null;
+
+    document
+      .querySelector(
+        "#previewCard"
+      )
+      .style.display =
+        "none";
+
+    message.innerHTML = `
+      <div class="notice bad">
+        ${error.message}
+      </div>
+    `;
+  }
+}
+
+function applySync(){
+
+  if(!pendingSync){
+    return;
+  }
+
+  const data =
+    pendingSync;
+
+  (data.reviews||[])
+    .forEach(r=>{
+
+      const q =
+        getQuestion(
+          r.question_id
+        );
+
+      if(!q){
+        return;
+      }
+
+      if(
+        r.completed &&
+        !q.done.includes(
+          r.stage
+        )
+      ){
+
+        q.done.push(
+          r.stage
+        );
+      }
+
+      if(r.status){
+
+        q.status =
+          r.status;
+      }
+
+    });
+
+  (data.new_practice||[])
+    .forEach(p=>{
+
+      const q =
+        getQuestion(
+          p.question_id
+        );
+
+      if(!q){
+        return;
+      }
+
+      if(!q.first){
+
+        q.first =
+          data.date;
+      }
+
+      if(
+        !q.done.includes("D0")
+      ){
+
+        q.done.push("D0");
+      }
+
+      if(p.status){
+
+        q.status =
+          p.status;
+      }
+
+      if(p.keywords){
+
+        q.keywords =
+          p.keywords;
+      }
+
+      if(p.scores){
+
+        state.scores.push({
+
+          day:
+            data.curriculum_day,
+
+          fluency:
+            Number(
+              p.scores.fluency
+            ),
+
+          lexical:
+            Number(
+              p.scores.lexical
+            ),
+
+          grammar:
+            Number(
+              p.scores.grammar
+            ),
+
+          pronunciation:
+            Number(
+              p.scores.pronunciation
+            )
+        });
+      }
+
+    });
+
+  (data.errors||[])
+    .forEach(e=>{
+
+      const old =
+        state.errors.find(
+          x=>
+            x.wrong
+            .toLowerCase() ===
+            e.wrong
+            .toLowerCase()
+        );
+
+      if(old){
+
+        old.count += 1;
+
+        old.correct =
+          e.correct;
+
+      }else{
+
+        state.errors.push({
+
+          wrong:e.wrong,
+          correct:e.correct,
+          type:e.type || "Other",
+          count:1
+        });
+      }
+
+    });
+
+  if(data.completed){
+
+    const already =
+      state.history
+      .some(
+        h=>
+          h.day ===
+          data.curriculum_day
+      );
+
+    if(!already){
+
+      state.history.push({
+
+        day:
+          data.curriculum_day,
+
+        date:
+          data.date,
+
+        status:
+          "completed",
+
+        part1:
+          data.part1 &&
+          data.part1.topics
+          ?
+          data.part1.topics
+          .join(" + ")
+          :
+          "",
+
+        part2:
+          (data.new_practice||[])
+          .map(
+            p=>p.question_id
+          ),
+
+        note:
+          "Imported from ChatGPT Live"
+      });
+    }
+
+    state.meta.lastCompletedDay =
+      Math.max(
+        state.meta.lastCompletedDay,
+        data.curriculum_day
+      );
+
+    state.meta.curriculumDay =
+      data.curriculum_day + 1;
+  }
+
+  state.importedSessions.push(
+    data.session_id
+  );
+
+  saveData();
+
+  pendingSync=null;
+
+  document
+    .querySelector(
+      "#syncInput"
+    )
+    .value="";
+
+  document
+    .querySelector(
+      "#previewCard"
+    )
+    .style.display =
+      "none";
+
+  document
+    .querySelector(
+      "#syncMessage"
+    )
+    .innerHTML = `
+      <div class="notice ok">
+        同步完成。
+      </div>
+    `;
+
+  renderAll();
+}
+
+function renderAll(){
+
+  renderMetrics();
+  renderTodayReviews();
+  renderReview();
+  renderBank();
+  renderHistory();
+  renderErrors();
+  renderProgress();
+}
+
+document
+  .querySelectorAll(".tab")
+  .forEach(button=>{
+
+    button.addEventListener(
+      "click",
+      ()=>{
+
+        document
+          .querySelectorAll(".tab")
+          .forEach(
+            x=>
+              x.classList.remove(
+                "active"
+              )
+          );
+
+        document
+          .querySelectorAll(".panel")
+          .forEach(
+            x=>
+              x.classList.remove(
+                "active"
+              )
+          );
+
+        button
+          .classList
+          .add("active");
+
+        document
+          .querySelector(
+            "#" +
+            button.dataset.tab
+          )
+          .classList
+          .add("active");
+      }
+    );
+  });
+
+document
+  .querySelector("#liveTop")
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .querySelector(
+          '[data-tab="sync"]'
+        )
+        .click();
+
+      document
+        .querySelector(
+          "#contextOutput"
+        )
+        .value =
+        JSON.stringify(
+          createLiveContext(),
+          null,
+          2
+        );
+    }
+  );
+
+document
+  .querySelector("#syncTop")
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .querySelector(
+          '[data-tab="sync"]'
+        )
+        .click();
+    }
+  );
+
+document
+  .querySelector(
+    "#generateContext"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .querySelector(
+          "#contextOutput"
+        )
+        .value =
+        JSON.stringify(
+          createLiveContext(),
+          null,
+          2
+        );
+    }
+  );
+
+document
+  .querySelector(
+    "#previewSync"
+  )
+  .addEventListener(
+    "click",
+    previewSync
+  );
+
+document
+  .querySelector(
+    "#confirmSync"
+  )
+  .addEventListener(
+    "click",
+    applySync
+  );
+
+document
+  .querySelector(
+    "#cancelSync"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      pendingSync=null;
+
+      document
+        .querySelector(
+          "#previewCard"
+        )
+        .style.display =
+          "none";
+    }
+  );
+
+document
+  .querySelector(
+    "#demoSync"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      document
+        .querySelector(
+          "#syncInput"
+        )
+        .value =
+        JSON.stringify(
+          {
+            schema:
+              "SESSION_RESULT_V1",
+
+            session_id:
+              "day7-demo",
+
+            date:
+              "2026-07-29",
+
+            curriculum_day:
+              7,
+
+            completed:
+              true,
+
+            reviews:[
+              {
+                question_id:
+                  "P006",
+
+                stage:
+                  "D3",
+
+                completed:
+                  true,
+
+                status:
+                  "yellow"
+              }
+            ],
+
+            part1:{
+              topics:[
+                "Music",
+                "Singing"
+              ]
+            },
+
+            new_practice:[
+              {
+                question_id:
+                  "P010",
+
+                status:
+                  "yellow",
+
+                keywords:[
+                  "friend",
+                  "advice",
+                  "decision"
+                ],
+
+                scores:{
+                  fluency:6,
+                  lexical:6,
+                  grammar:5.5,
+                  pronunciation:6
+                }
+              }
+            ],
+
+            errors:[
+              {
+                wrong:
+                  "give an advice",
+
+                correct:
+                  "give advice",
+
+                type:
+                  "Collocation"
+              }
+            ]
+          },
+          null,
+          2
+        );
+    }
+  );
+
+document
+  .querySelector("#search")
+  .addEventListener(
+    "input",
+    renderBank
+  );
+
+document
+  .querySelector(
+    "#statusFilter"
+  )
+  .addEventListener(
+    "change",
+    renderBank
+  );
+
+document
+  .querySelector(
+    "#exportBtn"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      const blob =
+        new Blob(
+          [
+            JSON.stringify(
+              state,
+              null,
+              2
+            )
+          ],
+          {
+            type:
+              "application/json"
+          }
+        );
+
+      const url =
+        URL.createObjectURL(
+          blob
+        );
+
+      const a =
+        document
+        .createElement("a");
+
+      a.href=url;
+
+      a.download =
+        "ielts-speaking-backup.json";
+
+      a.click();
+
+      URL.revokeObjectURL(
+        url
+      );
+    }
+  );
+
+document
+  .querySelector(
+    "#resetBtn"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      if(
+        confirm(
+          "确定恢复初始数据吗？"
+        )
+      ){
+
+        state =
+          clone(initialData);
+
+        saveData();
+
+        renderAll();
+      }
+    }
+  );
+
+document
+  .querySelector(
+    "#importBtn"
+  )
+  .addEventListener(
+    "click",
+    ()=>{
+
+      try{
+
+        const data =
+          JSON.parse(
+            document
+              .querySelector(
+                "#backupInput"
+              )
+              .value
+          );
+
+        if(
+          !data.meta ||
+          !data.questions
+        ){
+
+          throw new Error(
+            "不是有效备份"
+          );
+        }
+
+        state=data;
+
+        saveData();
+
+        renderAll();
+
+        document
+          .querySelector(
+            "#backupMessage"
+          )
+          .innerHTML =
+          `<div class="notice ok">
+            恢复成功
+          </div>`;
+
+      }catch(error){
+
+        document
+          .querySelector(
+            "#backupMessage"
+          )
+          .innerHTML =
+          `<div class="notice bad">
+            ${error.message}
+          </div>`;
+      }
+
+    }
+  );
+
+renderAll();
+</script>
+
+</body>
+</html>
