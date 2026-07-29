@@ -964,18 +964,6 @@ function addDays(dateString, days){
     .slice(0,10);
 }
 
-  const date =
-    new Date(dateString + "T00:00:00");
-
-  date.setDate(
-    date.getDate() + days
-  );
-
-  return date
-    .toISOString()
-    .slice(0,10);
-}
-
 function dateDiff(from,to){
 
   return Math.round(
