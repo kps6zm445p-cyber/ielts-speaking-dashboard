@@ -320,6 +320,10 @@
       gap: 9px;
       margin-top: 10px;
     }
+    .context-profile {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin: 12px 0 14px;
+    }
 
     .mini {
       padding: 10px 11px;
@@ -343,6 +347,7 @@
 
     input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(117,139,135,.20); }
     textarea { min-height: 230px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; }
+    #contextOutput { min-height: 390px; }
 
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
     .progress { height: 10px; overflow: hidden; border-radius: 999px; background: #ddd9d2; }
@@ -497,8 +502,9 @@
       <div class="grid-2">
         <div class="card">
           <div class="kicker">Before practice</div>
-          <h2>发送给 ChatGPT Live</h2>
-          <p class="small muted">Context 会严格引用当前 Day 的 v6.1 题目、复习节点与题库 Part 3。</p>
+          <h2>发送给 ChatGPT Live · V2</h2>
+          <p class="small muted">除当前 Day 的题目、复习节点与 Part 3 外，还会自动带上目标分、最新评分、常见错误和 Part 2 反馈协议。</p>
+          <div id="contextProfileSummary" class="plan-details context-profile"></div>
           <textarea id="contextOutput" aria-label="Live context output"></textarea>
           <div class="actions">
             <button class="btn primary" id="generateContext">生成 Context</button>
@@ -836,17 +842,115 @@
       });
     }
 
+    function currentBandProfile() {
+      const latest = state.scores[state.scores.length - 1] || {};
+      const criteria = {
+        fluency_and_coherence: Number(latest.fluency || 0),
+        lexical_resource: Number(latest.lexical || 0),
+        grammatical_range_and_accuracy: Number(latest.grammar || 0),
+        pronunciation: Number(latest.pronunciation || 0),
+      };
+      const assessed = Object.entries(criteria).filter(([, value]) => value > 0);
+      const average = assessed.length
+        ? assessed.reduce((sum, [, value]) => sum + value, 0) / assessed.length
+        : 0;
+      const weakest = assessed.slice().sort((a, b) => a[1] - b[1])[0] || ["not_assessed", 0];
+      return {
+        target_band: state.meta.target,
+        exam_dates: state.meta.exam,
+        assessed_through_day: latest.day || null,
+        estimated_speaking_band: Math.round(average * 2) / 2,
+        working_average: Number(average.toFixed(1)),
+        criteria,
+        priority_criterion: weakest[0],
+        priority_score: weakest[1],
+      };
+    }
+
+    function recurringErrors(limit = 5) {
+      return state.errors
+        .slice()
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(error => ({
+          wrong: error.wrong,
+          correction: error.correct,
+          type: error.type,
+          occurrences: error.count,
+        }));
+    }
+
+    function part2FeedbackProtocol(plan) {
+      return {
+        first_attempt: [
+          "Let the learner finish the first Part 2 answer without interruption or mid-answer correction.",
+          "Use the official cue card and allow normal thinking pauses.",
+        ],
+        deep_practice_feedback: [
+          "Score Fluency and Coherence, Lexical Resource, Grammatical Range and Accuracy, and Pronunciation separately.",
+          "Prioritize no more than three high-impact errors.",
+          "Provide a natural corrected version that preserves the learner's original meaning.",
+          "Extract a reusable 5–8 keyword material card instead of a memorized full script.",
+          "Require one immediate D0 re-say after feedback.",
+          "Assign a red, yellow, or green status.",
+        ],
+        transfer_practice_feedback: [
+          "Keep the transfer answer to 60–90 seconds.",
+          "Give concise feedback focused on transfer, fluency, and the highest-impact error.",
+          "Track the transfer question separately in the D1/D3/D7/D14 review queue.",
+        ],
+        today_required_output: plan.feedback,
+      };
+    }
+
+    function renderContextProfile() {
+      const profile = currentBandProfile();
+      const labels = {
+        fluency_and_coherence: "Fluency",
+        lexical_resource: "Lexical",
+        grammatical_range_and_accuracy: "Grammar",
+        pronunciation: "Pronunciation",
+        not_assessed: "未评分",
+      };
+      document.querySelector("#contextProfileSummary").innerHTML = `
+        <div class="mini"><strong>目标分</strong>${profile.target_band.toFixed(1)}</div>
+        <div class="mini"><strong>当前估分</strong>${profile.estimated_speaking_band.toFixed(1)}</div>
+        <div class="mini"><strong>当前优先项</strong>${esc(labels[profile.priority_criterion] || profile.priority_criterion)} · ${profile.priority_score.toFixed(1)}</div>
+        <div class="mini"><strong>高频错误</strong>${recurringErrors().length} 类已载入</div>`;
+    }
+
     function createLiveContext() {
       const plan = currentPlan();
       const deep = getQuestion(plan.deepId);
       const transfer = getQuestion(plan.transferId);
+      const bandProfile = currentBandProfile();
       return {
-        schema: "LIVE_CONTEXT_V1",
+        schema: "LIVE_CONTEXT_V2",
         plan_version: "6.1-final",
         date: state.meta.currentDate,
         curriculum_day: plan.day,
         planned_date: plan.plannedDate,
         progress_note: state.meta.note,
+        learner_profile: {
+          scope: "persistent_across_sessions",
+          target_band: bandProfile.target_band,
+          exam_dates: bandProfile.exam_dates,
+          current_band_profile: {
+            assessed_through_day: bandProfile.assessed_through_day,
+            estimated_speaking_band: bandProfile.estimated_speaking_band,
+            working_average: bandProfile.working_average,
+            criteria: bandProfile.criteria,
+            priority_criterion: bandProfile.priority_criterion,
+            priority_score: bandProfile.priority_score,
+          },
+          recurring_errors: recurringErrors(),
+          coaching_priority: [
+            `Coach toward Band ${bandProfile.target_band.toFixed(1)} without sacrificing fluency through over-correction.`,
+            `Treat ${bandProfile.priority_criterion} as the current scoring bottleneck.`,
+            "Recycle corrected forms from recurring_errors during feedback and the immediate re-say.",
+          ],
+        },
+        part2_feedback_protocol: part2FeedbackProtocol(plan),
         due_reviews: parseReviewItems(plan),
         part1: {
           topics: plan.part1.split("+").map(item => item.trim()).filter(Boolean),
@@ -861,8 +965,9 @@
           "Finish all curriculum-day due Part 2 reviews first.",
           "Do not repeat Part 1 if completed_ahead is true.",
           "Use the official English prompts and Part 3 questions in this context.",
+          "Apply learner_profile and part2_feedback_protocol from the first turn of a new conversation.",
           "Do not interrupt the first Part 2 answer.",
-          "After deep Part 2, give full IELTS feedback and an immediate D0 re-say.",
+          "After deep Part 2, give four-criterion IELTS feedback and an immediate D0 re-say.",
           "Deep and transfer Part 2 enter separate D1/D3/D7/D14 queues.",
           "End with a Review Card and SESSION_RESULT_V1.",
         ],
@@ -962,6 +1067,7 @@
       renderBank();
       renderHistory();
       renderProgress();
+      renderContextProfile();
     }
 
     document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => openTab(tab.dataset.tab)));
