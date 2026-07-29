@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#5d6b66">
+  <meta name="theme-color" content="#eef2f0">
   <title>IELTS Speaking V6.1 Dashboard</title>
   <style>
     :root {
@@ -11,7 +11,7 @@
       --ink: #434846;
       --muted: #6b716d;
       --paper: #f8f6f1;
-      --canvas: #e9e6df;
+      --canvas: #f1f3f1;
       --line: #d5cfc6;
       --navy: #5d6b66;
       --blue: #758b87;
@@ -31,12 +31,11 @@
     ::selection { color: var(--ink); background: #d9c6bf; }
 
     body {
+      min-height: 100vh;
       margin: 0;
       color: var(--ink);
-      background:
-        radial-gradient(circle at 92% -4%, rgba(177, 143, 133, .24), transparent 29rem),
-        radial-gradient(circle at -8% 44%, rgba(117, 139, 135, .16), transparent 32rem),
-        var(--canvas);
+      background: linear-gradient(145deg, #f8f7f4 0%, #eef2f0 52%, #f4f1ee 100%);
+      background-attachment: fixed;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
         "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
@@ -58,35 +57,36 @@
       overflow: hidden;
       padding: 28px;
       color: #fff;
-      border: 1px solid rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.42);
       border-radius: 26px;
-      background: linear-gradient(132deg, #55635e 0%, #62726c 58%, #755f59 100%);
-      box-shadow: var(--shadow);
+      background: linear-gradient(
+        125deg,
+        rgba(68, 90, 82, .94) 0%,
+        rgba(83, 106, 97, .92) 48%,
+        rgba(106, 81, 77, .90) 100%
+      );
+      -webkit-backdrop-filter: blur(24px) saturate(125%);
+      backdrop-filter: blur(24px) saturate(125%);
+      box-shadow:
+        0 22px 55px rgba(64, 74, 70, .14),
+        inset 0 1px 0 rgba(255,255,255,.28);
     }
 
     .hero::before {
       content: "";
       position: absolute;
-      width: 360px;
-      height: 210px;
-      left: 46%;
-      bottom: -165px;
-      border-radius: 50%;
-      background: rgba(215, 190, 181, .18);
-      filter: blur(2px);
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(
+        112deg,
+        rgba(255,255,255,.24) 0%,
+        rgba(255,255,255,.045) 38%,
+        rgba(225, 197, 189, .15) 100%
+      );
+      pointer-events: none;
     }
 
-    .hero::after {
-      content: "";
-      position: absolute;
-      width: 260px;
-      height: 260px;
-      right: -90px;
-      top: -125px;
-      border: 1px solid rgba(255,255,255,.20);
-      border-radius: 50%;
-      box-shadow: 0 0 0 34px rgba(255,255,255,.045), 0 0 0 74px rgba(255,255,255,.025);
-    }
+    .hero::after { display: none; }
 
     .hero-row, .section-head, .row-head, .toolbar {
       display: flex;
@@ -139,8 +139,21 @@
       box-shadow: 0 5px 16px rgba(67,72,70,.07);
     }
     .btn.primary { color: #fff; background: var(--coral); border-color: var(--coral); }
-    .btn.hero-btn { color: #52605b; background: #f8f6f1; border-color: #f8f6f1; font-weight: 700; }
-    .btn.ghost { color: #fff; background: transparent; border-color: rgba(255,255,255,.38); }
+    .btn.hero-btn {
+      color: #52605b;
+      background: rgba(255,255,255,.82);
+      border-color: rgba(255,255,255,.72);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      font-weight: 700;
+    }
+    .btn.ghost {
+      color: #fff;
+      background: rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.38);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
 
     .metrics {
       display: grid;
@@ -171,10 +184,10 @@
       align-items: start;
       margin: 16px 0;
       padding: 15px 17px;
-      border: 1px solid #d9bfb7;
+      border: 1px solid rgba(205, 195, 188, .86);
       border-radius: 16px;
-      background: var(--coral-soft);
-      color: #684e49;
+      background: linear-gradient(135deg, rgba(244,239,235,.94), rgba(232,238,235,.90));
+      color: #5f5956;
       line-height: 1.55;
     }
 
@@ -196,14 +209,27 @@
       overflow-x: auto;
       margin: 20px 0;
       padding: 9px;
-      border: 1px solid rgba(213, 207, 198, .92);
-      border-radius: 16px;
-      background: rgba(233, 230, 223, .90);
-      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.68);
+      border-radius: 18px;
+      background: linear-gradient(
+        135deg,
+        rgba(255,255,255,.76),
+        rgba(229,236,232,.70)
+      );
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
+      box-shadow:
+        0 12px 30px rgba(65, 76, 71, .09),
+        inset 0 1px 0 rgba(255,255,255,.72);
     }
 
     .tab { flex: 0 0 auto; padding: 9px 13px; background: transparent; border-color: transparent; }
-    .tab.active { color: #fff; background: var(--navy); border-color: var(--navy); }
+    .tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(79,103,95,.97), rgba(108,85,81,.96));
+      border-color: rgba(255,255,255,.20);
+      box-shadow: 0 6px 16px rgba(70,78,75,.16);
+    }
     .panel { display: none; }
     .panel.active { display: block; }
 
