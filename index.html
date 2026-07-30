@@ -547,7 +547,7 @@
         <div class="card">
           <div class="kicker">Before practice</div>
           <h2>发送给 ChatGPT Live · V2</h2>
-          <p class="small muted">除当前 Day 的题目、复习节点与 Part 3 外，还会自动带上目标分、最新评分、常见错误和 Part 2 反馈协议。</p>
+          <p class="small muted">除当前 Day 的题目、复习节点与 Part 3 外，还会自动带上长期口语档案，并要求练习结束后按固定模板生成完整的当日复习卡。</p>
           <div id="contextProfileSummary" class="plan-details context-profile"></div>
           <textarea id="contextOutput" aria-label="Live context output"></textarea>
           <div class="actions">
@@ -947,6 +947,79 @@
       };
     }
 
+    function dailyReviewCardProtocol() {
+      return {
+        schema: "DAILY_REVIEW_CARD_V1",
+        required: true,
+        language: {
+          explanations_and_feedback: "Simplified Chinese",
+          official_questions_examples_and_corrections: "English",
+        },
+        title_format: "Day {curriculum_day}｜{M月D日}复习卡",
+        opening_summary: [
+          "State clearly whether today's assigned work is complete.",
+          "State which new Part 2 topics have entered separate review queues.",
+        ],
+        required_section_order: [
+          "Part 1｜today's actual topics",
+          "Part 2 深练",
+          "Part 2 迁移题",
+          "Part 3",
+          "今天个人错误卡",
+          "今天最重要的收获",
+          "今日完成状态与下一次复习",
+        ],
+        part1_card: [
+          "List every question actually practised.",
+          "For each question, preserve the learner's own ideas or keyword material.",
+          "Show the most useful original-error → corrected-form pairs.",
+          "Give one natural answer or a concise answer structure appropriate for Part 1.",
+        ],
+        part2_card_for_each_topic: [
+          "Keep deep-practice and transfer topics as two independent cards and two independent review queues.",
+          "Show the exact official topic and summarize the learner's core story or material.",
+          "For deep practice, include separate brief assessments for Fluency and Coherence, Lexical Resource, Grammatical Range and Accuracy, and Pronunciation.",
+          "List no more than three highest-impact errors unless additional clear errors are needed in the personal error card.",
+          "Include a 5–8 item keyword card and a concise story skeleton.",
+          "Include five reusable core sentences when enough material was produced.",
+          "Assign red, yellow, or green status and explain the reason briefly.",
+          "For every new Part 2 topic, calculate and show D0, D1, D3, D7, and D14 dates from the actual practice date.",
+          "Give a natural reference version that preserves the learner's meaning, followed by the reminder: 不要背。D1 只看关键词自己讲。",
+        ],
+        part3_card: [
+          "Include every Part 3 question actually practised.",
+          "For each question, show the learner's viewpoint or reasoning chain.",
+          "Show the highest-value language corrections.",
+          "Give one natural reference answer based on the learner's ideas.",
+        ],
+        personal_error_card: [
+          "Record only clear errors actually produced in this session.",
+          "Use the format: original error → corrected form.",
+          "Prefer errors worth adding to the persistent recurring-error library.",
+          "Do not log fillers, abandoned fragments, or uncertain speech-recognition artefacts as errors.",
+        ],
+        daily_insight: [
+          "Identify one concrete pattern that most affected today's performance.",
+          "End with one short, executable rule for the next practice, supported by a small before/after example when useful.",
+        ],
+        completion_footer: [
+          "Mark each assigned component with ✅, partial, or not completed.",
+          "List tomorrow's due reviews explicitly.",
+          "If two new Part 2 topics were practised, remind the learner that both must be reviewed separately.",
+        ],
+        fidelity_rules: [
+          "Use only content, answers, mistakes, and scores actually observed in the session; never invent learner performance.",
+          "If a planned section was not practised, label it 未练习 instead of fabricating content.",
+          "Keep the card detailed enough to revise from, but prioritize the learner's own material over generic model answers.",
+        ],
+        final_response_order: [
+          "First return the complete human-readable Markdown Daily Review Card.",
+          "Then return one standalone JSON code block containing only SESSION_RESULT_V1 for Dashboard import.",
+          "Do not place explanations after the SESSION_RESULT_V1 code block.",
+        ],
+      };
+    }
+
     function renderContextProfile() {
       const profile = currentBandProfile();
       const labels = {
@@ -995,6 +1068,7 @@
           ],
         },
         part2_feedback_protocol: part2FeedbackProtocol(plan),
+        daily_review_card_protocol: dailyReviewCardProtocol(),
         due_reviews: parseReviewItems(plan),
         part1: {
           topics: plan.part1.split("+").map(item => item.trim()).filter(Boolean),
@@ -1013,7 +1087,8 @@
           "Do not interrupt the first Part 2 answer.",
           "After deep Part 2, give four-criterion IELTS feedback and an immediate D0 re-say.",
           "Deep and transfer Part 2 enter separate D1/D3/D7/D14 queues.",
-          "End with a Review Card and SESSION_RESULT_V1.",
+          "At the end of every practice session, follow daily_review_card_protocol completely; this is mandatory even in a new conversation.",
+          "Return the full Markdown Daily Review Card first and the standalone SESSION_RESULT_V1 JSON code block last.",
         ],
       };
     }
