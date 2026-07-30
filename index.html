@@ -662,6 +662,7 @@
     const getQuestion = id => state.questions.find(question => question.id === id);
     const getDay = day => state.schedule.find(item => item.day === Number(day));
     const currentPlan = () => getDay(state.meta.curriculumDay);
+    const part1CompletedAhead = plan => Number(plan?.day) === 7 && Boolean(plan?.part1DoneAhead);
 
     function coverageCount() {
       return state.questions.filter(question => question.done.includes("D0")).length;
@@ -686,10 +687,11 @@
     function renderMetrics() {
       const covered = coverageCount();
       const today = localTodayISO();
+      const plan = currentPlan();
       const metrics = [
         ["当前进度", `Day ${state.meta.curriculumDay}`, `已完成 Day ${state.meta.lastCompletedDay}`],
         ["Part 2 覆盖", `${covered} / ${state.meta.totalPart2}`, `${Math.round(covered / state.meta.totalPart2 * 100)}%`],
-        ["今日日期", today.slice(5).replace("-", "/"), "D7 Part 1 已提前完成"],
+        ["今日日期", today.slice(5).replace("-", "/"), part1CompletedAhead(plan) ? "D7 Part 1 已提前完成" : `Day ${state.meta.curriculumDay} 按计划进行`],
         ["目标分数", state.meta.target.toFixed(1), `考试 ${state.meta.exam}`],
       ];
       document.querySelector("#metrics").innerHTML = metrics.map(([label, value, note]) => `
@@ -725,18 +727,34 @@
       const deep = getQuestion(plan.deepId);
       const transfer = getQuestion(plan.transferId);
       const part3 = plan.part3Questions || [];
+      const part1IsAhead = part1CompletedAhead(plan);
+      const part1Card = part1IsAhead ? `
+          <div class="card">
+            <div class="kicker">Part 1 · Completed ahead</div>
+            <h2>${esc(plan.part1)}</h2>
+            <p class="muted">这部分已在 7 月 28 日完成，今天不重复占用训练时间。</p>
+            <span class="badge green">✓ 已完成</span>
+          </div>` : `
+          <div class="card">
+            <div class="kicker">Part 1 · Today</div>
+            <h2>${esc(plan.part1)}</h2>
+            <p class="muted">今天按考试节奏逐题完成 3–4 个问题；一次一题，回答后只纠正真正重要的问题。</p>
+            <span class="badge amber">今日任务</span>
+          </div>`;
       document.querySelector("#todayContent").innerHTML = `
         <div class="card accent">
           <div class="section-head">
             <div>
               <div class="kicker">Today · ${esc(localTodayISO())}</div>
               <h2>Day ${plan.day} · ${esc(plan.stage)}</h2>
-              <div class="small muted">原定 ${esc(plan.plannedDate)} · 今日继续完成未完成部分</div>
+              <div class="small muted">原定 ${esc(plan.plannedDate)} · ${part1IsAhead ? "Part 1 已提前完成，今日继续其余任务" : "按今日计划完成全部任务"}</div>
             </div>
             ${statusBadge("current")}
           </div>
           <div class="plan-details">
-            <div class="mini"><strong>Part 1</strong>${esc(plan.part1)}<br><span class="badge green" style="margin-top:6px">已于 7/28 提前完成</span></div>
+            <div class="mini"><strong>Part 1</strong>${esc(plan.part1)}${part1IsAhead
+              ? `<br><span class="badge green" style="margin-top:6px">已于 7/28 提前完成</span>`
+              : `<br><span class="badge amber" style="margin-top:6px">今日完成</span>`}</div>
             <div class="mini"><strong>当前到期复习</strong>${esc(plan.reviewText || "无固定到期项")}</div>
             <div class="mini"><strong>时间上限</strong>${esc(plan.duration)}</div>
           </div>
@@ -749,12 +767,7 @@
             <div class="task-title">${esc(plan.reviewText || "无固定到期项")}</div>
             <div class="small muted" style="line-height:1.65">${esc(plan.reviewMethod || "")}</div>
           </div>
-          <div class="card">
-            <div class="kicker">Part 1 · Completed ahead</div>
-            <h2>${esc(plan.part1)}</h2>
-            <p class="muted">这部分已在 7 月 28 日完成，今天不重复占用训练时间。</p>
-            <span class="badge green">✓ 已完成</span>
-          </div>
+          ${part1Card}
         </div>
 
         <div class="grid-2">
@@ -810,7 +823,7 @@
             </div>
             <div class="small muted" style="margin-top:4px">${esc(day.stage)}</div>
             <div class="plan-details">
-              <div class="mini"><strong>Part 1</strong>${esc(day.part1 || "完整模拟 / 热身")}${day.part1DoneAhead ? `<br><span class="badge green" style="margin-top:5px">提前完成</span>` : ""}</div>
+              <div class="mini"><strong>Part 1</strong>${esc(day.part1 || "完整模拟 / 热身")}${part1CompletedAhead(day) ? `<br><span class="badge green" style="margin-top:5px">提前完成</span>` : ""}</div>
               <div class="mini"><strong>Part 2</strong>${deep ? `${esc(deep.id)} ${esc(deep.zh)}` : esc(day.deepTitle || "无固定新题")}<br>${transfer ? `${esc(transfer.id)} ${esc(transfer.zh)}` : esc(day.transferTitle || "")}</div>
               <div class="mini"><strong>Part 3</strong>${day.part3Questions?.length ? day.part3Questions.map(esc).join("<br>") : esc(day.part3Theme || "按模拟流程")}</div>
             </div>
@@ -1341,8 +1354,8 @@
         due_reviews: parseReviewItems(plan),
         part1: {
           topics: plan.part1.split("+").map(item => item.trim()).filter(Boolean),
-          completed_ahead: Boolean(plan.part1DoneAhead),
-          completed_on: plan.part1DoneAhead ? "2026-07-28" : null,
+          completed_ahead: part1CompletedAhead(plan),
+          completed_on: part1CompletedAhead(plan) ? "2026-07-28" : null,
         },
         part2_deep: deep ? { question_id: deep.id, official_question: deep.en, cue_card: deep.cueCard } : null,
         part2_transfer: transfer ? { question_id: transfer.id, official_question: transfer.en, cue_card: transfer.cueCard } : null,
@@ -1460,7 +1473,7 @@
           day: data.curriculum_day,
           date: data.date,
           status: "completed",
-          part1: plan.part1DoneAhead ? `${plan.part1}（已于 7/28 提前完成）` : (data.part1?.topics || []).join(" + "),
+          part1: part1CompletedAhead(plan) ? `${plan.part1}（已于 7/28 提前完成）` : (data.part1?.topics || []).join(" + "),
           part2: (data.new_practice || []).map(item => item.question_id),
           part3: plan.part3Questions,
           note: "Imported from ChatGPT Live · V6.1",
