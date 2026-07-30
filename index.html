@@ -613,11 +613,45 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
 
+    function localTodayISO() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, "0");
+      const day = String(today.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function repairLegacyDay7Coverage(saved) {
+      const completedDay7 = saved.history?.find(item => item.day === 7 && item.status === "completed");
+      if (!completedDay7 || saved.meta?.lastCompletedDay < 7) return { data: saved, changed: false };
+
+      const day7Plan = saved.schedule?.find(item => item.day === 7);
+      const expectedIds = [day7Plan?.deepId, day7Plan?.transferId].filter(Boolean);
+      let changed = false;
+      expectedIds.forEach(id => {
+        const question = saved.questions?.find(item => item.id === id);
+        if (!question || question.done.includes("D0")) return;
+        question.first ||= completedDay7.date || "2026-07-29";
+        question.done.push("D0");
+        if (question.status === "new") question.status = "yellow";
+        changed = true;
+      });
+
+      if (changed) {
+        completedDay7.part2 = [...new Set([...(completedDay7.part2 || []), ...expectedIds])];
+      }
+      return { data: saved, changed };
+    }
+
     function loadData() {
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (saved && saved.schemaVersion === "6.1" && saved.questions?.length === 55) {
-          return saved;
+          const repaired = repairLegacyDay7Coverage(saved);
+          if (repaired.changed) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(repaired.data));
+          }
+          return repaired.data;
         }
       } catch (error) {}
       return clone(canonical);
@@ -651,10 +685,11 @@
 
     function renderMetrics() {
       const covered = coverageCount();
+      const today = localTodayISO();
       const metrics = [
         ["当前进度", `Day ${state.meta.curriculumDay}`, `已完成 Day ${state.meta.lastCompletedDay}`],
         ["Part 2 覆盖", `${covered} / ${state.meta.totalPart2}`, `${Math.round(covered / state.meta.totalPart2 * 100)}%`],
-        ["今日日期", state.meta.currentDate.slice(5).replace("-", "/"), "D7 Part 1 已提前完成"],
+        ["今日日期", today.slice(5).replace("-", "/"), "D7 Part 1 已提前完成"],
         ["目标分数", state.meta.target.toFixed(1), `考试 ${state.meta.exam}`],
       ];
       document.querySelector("#metrics").innerHTML = metrics.map(([label, value, note]) => `
@@ -694,7 +729,7 @@
         <div class="card accent">
           <div class="section-head">
             <div>
-              <div class="kicker">Today · ${esc(state.meta.currentDate)}</div>
+              <div class="kicker">Today · ${esc(localTodayISO())}</div>
               <h2>Day ${plan.day} · ${esc(plan.stage)}</h2>
               <div class="small muted">原定 ${esc(plan.plannedDate)} · 今日继续完成未完成部分</div>
             </div>
@@ -1017,6 +1052,11 @@
           "Then return one standalone JSON code block containing only SESSION_RESULT_V1 for Dashboard import.",
           "Do not place explanations after the SESSION_RESULT_V1 code block.",
         ],
+        session_result_requirements: [
+          "Every newly practised Part 2 topic must appear once in new_practice with its official question_id.",
+          "When completed is true, new_practice must include both planned deep and transfer Part 2 IDs unless that curriculum day has no new Part 2.",
+          "Never mark the curriculum day complete while omitting a Part 2 topic that was practised.",
+        ],
       };
     }
 
@@ -1044,7 +1084,7 @@
       return {
         schema: "LIVE_CONTEXT_V2",
         plan_version: "6.1-final",
-        date: state.meta.currentDate,
+        date: localTodayISO(),
         curriculum_day: plan.day,
         planned_date: plan.plannedDate,
         progress_note: state.meta.note,
@@ -1103,15 +1143,46 @@
       document.querySelector("#contextOutput").value = JSON.stringify(createLiveContext(), null, 2);
     }
 
+    function validateSyncData(data) {
+      if (data.schema !== "SESSION_RESULT_V1") throw new Error("不是有效的 SESSION_RESULT_V1");
+      if (!data.session_id) throw new Error("缺少 session_id");
+      if (state.importedSessions.includes(data.session_id)) throw new Error("这个 Session 已经同步过");
+
+      const plan = getDay(data.curriculum_day);
+      if (!plan) throw new Error(`找不到 Day ${data.curriculum_day} 的复习计划`);
+
+      const newPractice = Array.isArray(data.new_practice) ? data.new_practice : [];
+      const submittedIds = newPractice.map(item => item.question_id).filter(Boolean);
+      const unknownIds = submittedIds.filter(id => !getQuestion(id));
+      if (unknownIds.length) throw new Error(`题号不存在：${[...new Set(unknownIds)].join("、")}`);
+      if (new Set(submittedIds).size !== submittedIds.length) throw new Error("new_practice 中有重复题号");
+
+      if (data.completed) {
+        const expectedIds = [plan.deepId, plan.transferId]
+          .filter(Boolean)
+          .filter(id => !getQuestion(id)?.done.includes("D0"));
+        const missingIds = expectedIds.filter(id => !submittedIds.includes(id));
+        if (missingIds.length) {
+          throw new Error(
+            `Day ${plan.day} 已标记完成，但同步码缺少 ${missingIds.join("、")}。请让 ChatGPT 重新生成完整的 SESSION_RESULT_V1。`
+          );
+        }
+      }
+      return data;
+    }
+
     function previewSync() {
       const message = document.querySelector("#syncMessage");
       try {
-        const data = JSON.parse(document.querySelector("#syncInput").value);
-        if (data.schema !== "SESSION_RESULT_V1") throw new Error("不是有效的 SESSION_RESULT_V1");
-        if (!data.session_id) throw new Error("缺少 session_id");
-        if (state.importedSessions.includes(data.session_id)) throw new Error("这个 Session 已经同步过");
+        const data = validateSyncData(JSON.parse(document.querySelector("#syncInput").value));
         pendingSync = data;
         const changes = [];
+        const newlyCoveredIds = [...new Set((data.new_practice || [])
+          .map(item => item.question_id)
+          .filter(id => getQuestion(id) && !getQuestion(id).done.includes("D0")))];
+        if (newlyCoveredIds.length) {
+          changes.push(`Part 2 覆盖：${coverageCount()} → ${coverageCount() + newlyCoveredIds.length} / ${state.meta.totalPart2}`);
+        }
         (data.reviews || []).forEach(review => changes.push(`✓ ${review.question_id} 完成 ${review.stage}`));
         (data.new_practice || []).forEach(practice => changes.push(`＋ ${practice.question_id} 新增首练`));
         (data.errors || []).forEach(error => changes.push(`↳ ${error.wrong} → ${error.correct}`));
