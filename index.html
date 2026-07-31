@@ -897,28 +897,143 @@
         }).join("");
     }
 
+    function parseBandScore(value) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value >= 0 && value <= 9 ? value : null;
+      }
+      const matches = String(value ?? "").match(/\d+(?:\.\d+)?/g);
+      if (!matches?.length) return null;
+      const numbers = matches.map(Number).filter(number => number >= 0 && number <= 9);
+      if (!numbers.length) return null;
+      return numbers.reduce((sum, number) => sum + number, 0) / numbers.length;
+    }
+
+    function normalizeScoreEntry(raw = {}) {
+      const source = raw?.criteria && typeof raw.criteria === "object"
+        ? { ...raw, ...raw.criteria }
+        : (raw || {});
+      return {
+        day: source.day ?? source.curriculum_day ?? null,
+        fluency: parseBandScore(
+          source.fluency
+          ?? source.fluency_and_coherence
+          ?? source.fluency_coherence
+          ?? source["Fluency and Coherence"]
+          ?? source.fc
+        ),
+        lexical: parseBandScore(
+          source.lexical
+          ?? source.lexical_resource
+          ?? source["Lexical Resource"]
+          ?? source.lr
+        ),
+        grammar: parseBandScore(
+          source.grammar
+          ?? source.grammatical_range_and_accuracy
+          ?? source.grammar_range_and_accuracy
+          ?? source["Grammatical Range and Accuracy"]
+          ?? source.gra
+        ),
+        pronunciation: parseBandScore(
+          source.pronunciation
+          ?? source["Pronunciation"]
+        ),
+      };
+    }
+
+    function mergeScoreEntries(entries, day = null) {
+      const merged = {
+        day,
+        fluency: null,
+        lexical: null,
+        grammar: null,
+        pronunciation: null,
+      };
+      entries.flatMap(entry => Array.isArray(entry) ? entry : [entry]).forEach(entry => {
+        if (!entry || typeof entry !== "object") return;
+        const normalized = normalizeScoreEntry(entry);
+        merged.day ??= normalized.day;
+        ["fluency", "lexical", "grammar", "pronunciation"].forEach(key => {
+          if (normalized[key] !== null) merged[key] = normalized[key];
+        });
+      });
+      return merged;
+    }
+
+    function latestBandScores() {
+      const merged = {
+        day: null,
+        fluency: null,
+        lexical: null,
+        grammar: null,
+        pronunciation: null,
+      };
+      for (let index = state.scores.length - 1; index >= 0; index -= 1) {
+        const normalized = normalizeScoreEntry(state.scores[index]);
+        const hasScore = ["fluency", "lexical", "grammar", "pronunciation"]
+          .some(key => normalized[key] !== null);
+        if (hasScore && merged.day === null) merged.day = normalized.day;
+        ["fluency", "lexical", "grammar", "pronunciation"].forEach(key => {
+          if (merged[key] === null && normalized[key] !== null) merged[key] = normalized[key];
+        });
+        if (["fluency", "lexical", "grammar", "pronunciation"].every(key => merged[key] !== null)) break;
+      }
+      return merged;
+    }
+
+    function normalizeErrorEntry(raw = {}) {
+      const wrong = String(
+        raw.wrong
+        ?? raw.original
+        ?? raw.original_expression
+        ?? raw.error
+        ?? ""
+      ).trim();
+      const correct = String(
+        raw.correct
+        ?? raw.correction
+        ?? raw.corrected
+        ?? raw.corrected_expression
+        ?? ""
+      ).trim();
+      if (!wrong || !correct) return null;
+      const count = Number(raw.count);
+      return {
+        wrong,
+        correct,
+        type: String(raw.type ?? raw.category ?? raw.error_type ?? "Other"),
+        count: Number.isFinite(count) && count > 0 ? count : 1,
+      };
+    }
+
     function renderProgress() {
-      const latest = state.scores[state.scores.length - 1];
+      const latest = latestBandScores();
       const scores = [
         ["Fluency", latest.fluency],
         ["Lexical", latest.lexical],
         ["Grammar", latest.grammar],
         ["Pronunciation", latest.pronunciation],
       ];
-      document.querySelector("#scoreBars").innerHTML = scores.map(([name, value]) => `
-        <div class="score-row">
-          <span>${esc(name)}</span>
-          <div class="progress"><span style="width:${value / 9 * 100}%"></span></div>
-          <strong>${value.toFixed(1)}</strong>
-        </div>`).join("");
-      document.querySelector("#errorList").innerHTML = state.errors
-        .slice()
-        .sort((a, b) => b.count - a.count)
-        .map(error => `
+      const hasAnyScore = scores.some(([, value]) => value !== null);
+      document.querySelector("#scoreBars").innerHTML = hasAnyScore
+        ? scores.map(([name, value]) => `
+          <div class="score-row">
+            <span>${esc(name)}</span>
+            <div class="progress"><span style="width:${(value ?? 0) / 9 * 100}%"></span></div>
+            <strong>${value === null ? "—" : value.toFixed(1)}</strong>
+          </div>`).join("")
+        : `<div class="empty">暂无有效评分；完成一次带四项评分的练习后会显示。</div>`;
+      const normalizedErrors = state.errors
+        .map(normalizeErrorEntry)
+        .filter(Boolean)
+        .sort((a, b) => b.count - a.count);
+      document.querySelector("#errorList").innerHTML = normalizedErrors.length
+        ? normalizedErrors.map(error => `
           <div class="error-item">
             <div class="row-head"><strong>${esc(error.wrong)} → ${esc(error.correct)}</strong><span class="badge red">×${error.count}</span></div>
             <div class="small muted">${esc(error.type)}</div>
-          </div>`).join("");
+          </div>`).join("")
+        : `<div class="empty">暂无已确认的个人错误。</div>`;
     }
 
     function parseReviewItems(plan) {
@@ -935,7 +1050,7 @@
     }
 
     function currentBandProfile() {
-      const latest = state.scores[state.scores.length - 1] || {};
+      const latest = latestBandScores();
       const criteria = {
         fluency_and_coherence: Number(latest.fluency || 0),
         lexical_resource: Number(latest.lexical || 0),
@@ -961,7 +1076,8 @@
 
     function recurringErrors(limit = 5) {
       return state.errors
-        .slice()
+        .map(normalizeErrorEntry)
+        .filter(Boolean)
         .sort((a, b) => b.count - a.count)
         .slice(0, limit)
         .map(error => ({
@@ -1177,6 +1293,12 @@
             "If LIVE_CONTEXT supplies an explicit SESSION_RESULT_V1 schema, follow it exactly.",
             "Every newly practised Part 2 topic must appear once in new_practice using its official question_id.",
           ],
+          dashboard_field_contract: {
+            score_keys: ["fluency", "lexical", "grammar", "pronunciation"],
+            score_values: "Numeric IELTS band values from 0 to 9",
+            error_item_keys: ["wrong", "correct", "type"],
+            instruction: "Prefer these canonical keys. The Dashboard also accepts common long-form aliases for backward compatibility.",
+          },
         },
         new_conversation_workflow: {
           protocol_without_live_context: {
@@ -1428,7 +1550,10 @@
         }
         (data.reviews || []).forEach(review => changes.push(`✓ ${review.question_id} 完成 ${review.stage}`));
         (data.new_practice || []).forEach(practice => changes.push(`＋ ${practice.question_id} 新增首练`));
-        (data.errors || []).forEach(error => changes.push(`↳ ${error.wrong} → ${error.correct}`));
+        (data.errors || [])
+          .map(normalizeErrorEntry)
+          .filter(Boolean)
+          .forEach(error => changes.push(`↳ ${error.wrong} → ${error.correct}`));
         if (data.completed) changes.push(`✓ Day ${data.curriculum_day} 归档完成`);
         document.querySelector("#previewList").innerHTML = changes.map(change => `<div class="review-item">${esc(change)}</div>`).join("");
         document.querySelector("#previewCard").style.display = "block";
@@ -1456,15 +1581,27 @@
         if (!question.done.includes("D0")) question.done.push("D0");
         if (practice.status) question.status = practice.status;
         if (practice.keywords) question.keywords = practice.keywords;
-        if (practice.scores) state.scores.push({ day: data.curriculum_day, ...practice.scores });
       });
-      (data.errors || []).forEach(error => {
-        const existing = state.errors.find(item => item.wrong.toLowerCase() === error.wrong.toLowerCase());
+      const sessionScores = mergeScoreEntries([
+        data.scores,
+        data.band_scores,
+        data.assessment?.scores,
+        ...(data.new_practice || []).map(practice => practice.scores),
+      ], data.curriculum_day);
+      if (["fluency", "lexical", "grammar", "pronunciation"].some(key => sessionScores[key] !== null)) {
+        state.scores.push(sessionScores);
+      }
+      (data.errors || []).map(normalizeErrorEntry).filter(Boolean).forEach(error => {
+        const existing = state.errors.find(item => (
+          normalizeErrorEntry(item)?.wrong.toLowerCase() === error.wrong.toLowerCase()
+        ));
         if (existing) {
-          existing.count += 1;
+          existing.wrong = error.wrong;
+          existing.count = Number(existing.count || 0) + error.count;
           existing.correct = error.correct;
+          existing.type = error.type;
         } else {
-          state.errors.push({ wrong: error.wrong, correct: error.correct, type: error.type || "Other", count: 1 });
+          state.errors.push(error);
         }
       });
       if (data.completed) {
