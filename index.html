@@ -604,6 +604,76 @@
     const STORAGE_KEY = "ielts-speaking-dashboard-v61-final";
     const canonical = window.IELTS_V61_DATA;
     let pendingSync = null;
+    const MISSING_CORRECTION = "待补充正确表达";
+    const LEGACY_ERROR_CORRECTIONS = new Map([
+      ["a international law firm", "an international law firm"],
+      ["i will working", "I will work / I will be working"],
+      ["may let me remote work", "may allow me to work remotely"],
+      ["more free style", "more flexible"],
+      ["get in charge from the heavy work", "recharge / take a break from heavy work"],
+      ["i want to working in foreign country", "I want to work in a foreign country"],
+      ["a ip paralegal", "an IP paralegal"],
+      ["german legals", "German lawyers"],
+      ["apply it for my chinese similar legal issues", "apply it to similar legal issues in China"],
+      ["are prefer to find candidates", "prefer to find candidates"],
+      ["will helpful for me", "will be helpful for me"],
+      ["increase my competitives", "increase my competitiveness / make me more competitive"],
+      ["a germany law firm", "a German law firm"],
+      ["when i not receive a reply", "when I didn't receive a reply"],
+      ["i just prepared for the master entrance exam", "I was preparing for the master's entrance exam"],
+      ["the date of the exam are getting closer", "the exam date was getting closer"],
+      ["sent a message for my ex", "sent a message to my ex"],
+      ["send a message for my ex", "send a message to my ex"],
+      ["my boyfriend still active online", "my ex-boyfriend was still active online"],
+      ["i got the entrance-ability of the university", "I got into / was admitted to the university"],
+      ["it happens in 2 years ago", "It happened two years ago"],
+      ["i was just graduate from my university", "I had just graduated from university"],
+      ["two maybe three offer", "two or three offers"],
+      ["i didn't decided", "I didn't decide / I couldn't decide"],
+      ["i asked for my parents for help", "I asked my parents for help"],
+      ["what is i really wanted", "what I really wanted"],
+      ["another things", "other things"],
+      ["i also thankful for my parents' advice", "I'm also thankful / grateful for my parents' advice"],
+      ["people will careful a lot", "people will be very careful"],
+      ["more time as usual", "more time than usual"],
+      ["respond this message", "respond to this message"],
+      ["this people", "these people"],
+      ["people do need a lot of time to spelling and rethinking how to make a sentence", "people need time to spell and think about how to form a sentence"],
+      ["the call is instance", "a phone call is instant"],
+      ["people are sometimes in more introverted", "some people are more introverted"],
+      ["make a call with their friends", "call their friends / make a call to their friends"],
+      ["avoid to face to face", "avoid face-to-face communication"],
+      ["listen another strange person's voice", "listen to a stranger's voice"],
+      ["i have listened to music almost every time.", "I listen to music almost every day."],
+      ["i really love listen music.", "I really love listening to music."],
+      ["love listen music", "love listening to music"],
+      ["i have listen lot of varieties of music.", "I listen to many different kinds of music."],
+      ["especially the song of taylor swift", "especially Taylor Swift's songs"],
+      ["i attend a choir in every weekend.", "I sing in a choir every weekend."],
+      ["in every weekend", "every weekend"],
+      ["he helps me to decided.", "He helped me decide."],
+      ["between choose different job offers", "choose between different job offers"],
+      ["he think abouts...", "He thought about..."],
+      ["i asked the advice for my father.", "I asked my father for advice."],
+      ["ask the advice for my father", "ask my father for advice"],
+      ["after heard of his thought...", "After hearing his advice..."],
+      ["a time that i have gave someone advice", "a time when I gave someone advice"],
+      ["i have gave someone advice", "I gave someone advice"],
+      ["she has difficult to make this decision.", "She had difficulty making this decision."],
+      ["after heard of that, she choose...", "After hearing my advice, she chose..."],
+      ["the job is not so high salary.", "The job did not offer such a high salary."],
+      ["it gave her time to make company with her family.", "It gave her more time to spend with her family and friends."],
+      ["both are equal important.", "Both are equally important."],
+      ["some childrens are born of gift.", "Some children are born gifted."],
+      ["some childrens", "some children"],
+      ["they not working hard.", "They do not work hard."],
+      ["some child may not so smart.", "Some children may not be very smart."],
+      ["children could becoming smarter.", "Children could become smarter."],
+      ["attend some working workshop and some activities.", "Attend workshops and join activities."],
+      ["listening their teacher’s more carefully.", "Listen to their teachers more carefully."],
+      ["listening their teachers", "listen to their teachers"],
+      ["the teacher will told them.", "Teachers will tell them."],
+    ]);
 
     const clone = value => JSON.parse(JSON.stringify(value));
     const esc = value => String(value ?? "")
@@ -643,11 +713,60 @@
       return { data: saved, changed };
     }
 
+    function repairLegacyErrorCorrections(saved) {
+      let changed = false;
+      (saved.errors || []).forEach(error => {
+        if (!error || typeof error !== "object") return;
+        const wrong = String(
+          error.wrong
+          ?? error.original
+          ?? error.original_expression
+          ?? error.incorrect
+          ?? error.incorrect_expression
+          ?? error.learner_expression
+          ?? error.spoken
+          ?? error.before
+          ?? error.from
+          ?? error.error
+          ?? ""
+        ).trim();
+        if (!wrong) return;
+        const existingCorrection = [
+          error.correct,
+          error.correction,
+          error.corrected,
+          error.corrected_expression,
+          error.correct_form,
+          error.better,
+          error.suggested,
+          error.after,
+          error.to,
+        ].find(value => {
+          const text = String(value ?? "").trim();
+          return text && text !== MISSING_CORRECTION;
+        });
+        const recovered = existingCorrection || LEGACY_ERROR_CORRECTIONS.get(wrong.toLowerCase());
+        if (!recovered || error.correct === recovered) return;
+        error.correct = recovered;
+        changed = true;
+      });
+      return { data: saved, changed };
+    }
+
+    function repairPersistedV61Data(saved) {
+      const coverageRepair = repairLegacyDay7Coverage(saved);
+      const errorRepair = repairLegacyErrorCorrections(coverageRepair.data);
+      return {
+        data: errorRepair.data,
+        changed: coverageRepair.changed || errorRepair.changed,
+      };
+    }
+
     function loadData() {
       try {
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (saved && saved.schemaVersion === "6.1" && saved.questions?.length === 55) {
-          const repaired = repairLegacyDay7Coverage(saved);
+          const repaired = repairPersistedV61Data(saved);
           if (repaired.changed) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(repaired.data));
           }
@@ -1042,7 +1161,7 @@
       const count = Number(raw.count);
       return {
         wrong,
-        correct: correct || "待补充正确表达",
+        correct: correct || MISSING_CORRECTION,
         type: String(raw.type ?? raw.category ?? raw.error_type ?? "Other"),
         count: Number.isFinite(count) && count > 0 ? count : 1,
       };
@@ -1640,7 +1759,7 @@
         if (existing) {
           existing.wrong = error.wrong;
           existing.count = Number(existing.count || 0) + error.count;
-          existing.correct = error.correct;
+          if (error.correct !== MISSING_CORRECTION) existing.correct = error.correct;
           existing.type = error.type;
         } else {
           state.errors.push(error);
@@ -1739,7 +1858,7 @@
       try {
         const data = JSON.parse(document.querySelector("#backupInput").value);
         if (data.schemaVersion !== "6.1" || data.questions?.length !== 55) throw new Error("只支持 V6.1 备份");
-        state = data;
+        state = repairPersistedV61Data(data).data;
         saveData();
         renderAll();
         message.innerHTML = `<div class="notice ok">恢复成功。</div>`;
