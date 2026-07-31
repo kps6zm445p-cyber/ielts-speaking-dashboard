@@ -898,6 +898,15 @@
     }
 
     function parseBandScore(value) {
+      if (value && typeof value === "object") {
+        return parseBandScore(
+          value.score
+          ?? value.band
+          ?? value.value
+          ?? value.estimated_band
+          ?? value.range
+        );
+      }
       if (typeof value === "number" && Number.isFinite(value)) {
         return value >= 0 && value <= 9 ? value : null;
       }
@@ -912,7 +921,7 @@
       const source = raw?.criteria && typeof raw.criteria === "object"
         ? { ...raw, ...raw.criteria }
         : (raw || {});
-      return {
+      const normalized = {
         day: source.day ?? source.curriculum_day ?? null,
         fluency: parseBandScore(
           source.fluency
@@ -939,6 +948,15 @@
           ?? source["Pronunciation"]
         ),
       };
+      const criterionName = String(source.criterion ?? source.name ?? source.category ?? "").toLowerCase();
+      const criterionScore = parseBandScore(source.score ?? source.band ?? source.value);
+      if (criterionScore !== null) {
+        if (criterionName.includes("fluency")) normalized.fluency ??= criterionScore;
+        if (criterionName.includes("lexical")) normalized.lexical ??= criterionScore;
+        if (criterionName.includes("grammar")) normalized.grammar ??= criterionScore;
+        if (criterionName.includes("pronunciation")) normalized.pronunciation ??= criterionScore;
+      }
+      return normalized;
     }
 
     function mergeScoreEntries(entries, day = null) {
@@ -954,7 +972,7 @@
         const normalized = normalizeScoreEntry(entry);
         merged.day ??= normalized.day;
         ["fluency", "lexical", "grammar", "pronunciation"].forEach(key => {
-          if (normalized[key] !== null) merged[key] = normalized[key];
+          if (merged[key] === null && normalized[key] !== null) merged[key] = normalized[key];
         });
       });
       return merged;
@@ -968,11 +986,20 @@
         grammar: null,
         pronunciation: null,
       };
-      for (let index = state.scores.length - 1; index >= 0; index -= 1) {
-        const normalized = normalizeScoreEntry(state.scores[index]);
-        const hasScore = ["fluency", "lexical", "grammar", "pronunciation"]
-          .some(key => normalized[key] !== null);
-        if (hasScore && merged.day === null) merged.day = normalized.day;
+      const entries = state.scores
+        .map((entry, index) => ({ ...normalizeScoreEntry(entry), index }))
+        .filter(entry => ["fluency", "lexical", "grammar", "pronunciation"]
+          .some(key => entry[key] !== null))
+        .sort((a, b) => {
+          const dayA = Number(a.day);
+          const dayB = Number(b.day);
+          if (Number.isFinite(dayA) && Number.isFinite(dayB) && dayA !== dayB) return dayB - dayA;
+          if (Number.isFinite(dayA) && !Number.isFinite(dayB)) return -1;
+          if (!Number.isFinite(dayA) && Number.isFinite(dayB)) return 1;
+          return a.index - b.index;
+        });
+      for (const normalized of entries) {
+        merged.day ??= normalized.day;
         ["fluency", "lexical", "grammar", "pronunciation"].forEach(key => {
           if (merged[key] === null && normalized[key] !== null) merged[key] = normalized[key];
         });
@@ -982,10 +1009,20 @@
     }
 
     function normalizeErrorEntry(raw = {}) {
+      if (typeof raw === "string") {
+        const [wrong, correct] = raw.split(/\s*(?:→|->|=>)\s*/, 2);
+        return normalizeErrorEntry({ wrong, correct });
+      }
       const wrong = String(
         raw.wrong
         ?? raw.original
         ?? raw.original_expression
+        ?? raw.incorrect
+        ?? raw.incorrect_expression
+        ?? raw.learner_expression
+        ?? raw.spoken
+        ?? raw.before
+        ?? raw.from
         ?? raw.error
         ?? ""
       ).trim();
@@ -994,13 +1031,18 @@
         ?? raw.correction
         ?? raw.corrected
         ?? raw.corrected_expression
+        ?? raw.correct_form
+        ?? raw.better
+        ?? raw.suggested
+        ?? raw.after
+        ?? raw.to
         ?? ""
       ).trim();
-      if (!wrong || !correct) return null;
+      if (!wrong) return null;
       const count = Number(raw.count);
       return {
         wrong,
-        correct,
+        correct: correct || "待补充正确表达",
         type: String(raw.type ?? raw.category ?? raw.error_type ?? "Other"),
         count: Number.isFinite(count) && count > 0 ? count : 1,
       };
@@ -1021,7 +1063,7 @@
             <span>${esc(name)}</span>
             <div class="progress"><span style="width:${(value ?? 0) / 9 * 100}%"></span></div>
             <strong>${value === null ? "—" : value.toFixed(1)}</strong>
-          </div>`).join("")
+          </div>`).join("") + `<div class="small muted" style="margin-top:12px">采用 Day ${esc(latest.day ?? "—")} 的 Deep / 综合评分；Transfer 不覆盖能力档案。</div>`
         : `<div class="empty">暂无有效评分；完成一次带四项评分的练习后会显示。</div>`;
       const normalizedErrors = state.errors
         .map(normalizeErrorEntry)
