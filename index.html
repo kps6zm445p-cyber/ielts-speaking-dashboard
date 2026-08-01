@@ -839,7 +839,7 @@
           return repaired.data;
         }
       } catch (error) {}
-      return clone(canonical);
+      return repairPersistedV61Data(clone(canonical)).data;
     }
 
     let state = loadData();
