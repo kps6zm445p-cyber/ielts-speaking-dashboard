@@ -674,6 +674,34 @@
       ["listening their teachers", "listen to their teachers"],
       ["the teacher will told them.", "Teachers will tell them."],
     ]);
+    const VERIFIED_LEGACY_REVIEW_COMPLETIONS = [
+      {
+        day: 7,
+        reviews: [
+          ["P006", "D3"],
+          ["P007", "D3"],
+        ],
+      },
+      {
+        day: 8,
+        reviews: [
+          ["P001", "D7"],
+          ["P008", "D3"],
+          ["P009", "D3"],
+          ["P010", "D1"],
+          ["P011", "D1"],
+        ],
+      },
+      {
+        day: 9,
+        reviews: [
+          ["P002", "D7"],
+          ["P003", "D7"],
+          ["P012", "D1"],
+          ["P013", "D1"],
+        ],
+      },
+    ];
 
     const clone = value => JSON.parse(JSON.stringify(value));
     const esc = value => String(value ?? "")
@@ -753,12 +781,50 @@
       return { data: saved, changed };
     }
 
+    function repairLegacyCompletedReviewStages(saved) {
+      let changed = false;
+      VERIFIED_LEGACY_REVIEW_COMPLETIONS.forEach(entry => {
+        const completedDay = saved.history?.find(item => (
+          Number(item.day) === entry.day && item.status === "completed"
+        ));
+        if (!completedDay || Number(saved.meta?.lastCompletedDay || 0) < entry.day) return;
+        if (!Array.isArray(completedDay.reviews)) {
+          completedDay.reviews = [];
+          changed = true;
+        }
+        entry.reviews.forEach(([questionId, stage]) => {
+          const question = saved.questions?.find(item => item.id === questionId);
+          if (question) {
+            question.done ||= [];
+            if (!question.done.includes(stage)) {
+              question.done.push(stage);
+              changed = true;
+            }
+          }
+          const hasHistoryRecord = completedDay.reviews.some(review => (
+            review.question_id === questionId && review.stage === stage
+          ));
+          if (!hasHistoryRecord) {
+            completedDay.reviews.push({
+              question_id: questionId,
+              stage,
+              completed: true,
+              completed_on: completedDay.date,
+            });
+            changed = true;
+          }
+        });
+      });
+      return { data: saved, changed };
+    }
+
     function repairPersistedV61Data(saved) {
       const coverageRepair = repairLegacyDay7Coverage(saved);
-      const errorRepair = repairLegacyErrorCorrections(coverageRepair.data);
+      const reviewRepair = repairLegacyCompletedReviewStages(coverageRepair.data);
+      const errorRepair = repairLegacyErrorCorrections(reviewRepair.data);
       return {
         data: errorRepair.data,
-        changed: coverageRepair.changed || errorRepair.changed,
+        changed: coverageRepair.changed || reviewRepair.changed || errorRepair.changed,
       };
     }
 
@@ -1010,6 +1076,7 @@
               </div>
               ${item.part1 ? `<div class="small" style="margin-top:7px"><strong>Part 1：</strong>${esc(item.part1)}</div>` : ""}
               ${questions.length ? `<div class="small" style="margin-top:4px"><strong>Part 2：</strong>${questions.map(q => `${esc(q.id)} ${esc(q.zh)}`).join("；")}</div>` : ""}
+              ${item.reviews?.length ? `<div class="small" style="margin-top:4px"><strong>复习：</strong>${item.reviews.map(review => `${esc(review.question_id)} ${esc(review.stage)}`).join("；")}</div>` : ""}
               ${item.part3?.length ? `<div class="small" style="margin-top:4px"><strong>Part 3：</strong>${item.part3.map(esc).join("；")}</div>` : ""}
               <div class="small muted" style="margin-top:5px">${esc(item.note || "")}</div>
             </article>`;
@@ -1208,6 +1275,39 @@
           keywords: match[2] === "D1" ? question?.keywords : undefined,
         };
       });
+    }
+
+    function normalizeReviewEntry(raw = {}) {
+      if (!raw || typeof raw !== "object") return null;
+      const questionId = String(raw.question_id ?? raw.questionId ?? raw.id ?? "").trim();
+      const stage = String(raw.stage ?? raw.review_stage ?? raw.reviewStage ?? "").trim().toUpperCase();
+      if (!questionId || !stage) return null;
+      const completionValue = raw.completed ?? raw.status ?? raw.result;
+      const completed = completionValue === true
+        || ["true", "completed", "done"].includes(String(completionValue ?? "").toLowerCase())
+        || Boolean(raw.completed_on ?? raw.completedOn);
+      return {
+        ...raw,
+        question_id: questionId,
+        stage,
+        completed,
+      };
+    }
+
+    function sessionReviewItems(data = {}) {
+      const sources = [
+        data.reviews,
+        data.due_reviews,
+        data.review_results,
+        data.completed_reviews,
+      ].filter(Array.isArray).flat();
+      const merged = new Map();
+      sources.map(normalizeReviewEntry).filter(Boolean).forEach(review => {
+        const key = `${review.question_id}:${review.stage}`;
+        const existing = merged.get(key);
+        if (!existing || (!existing.completed && review.completed)) merged.set(key, review);
+      });
+      return [...merged.values()];
     }
 
     function currentBandProfile() {
@@ -1457,8 +1557,11 @@
           dashboard_field_contract: {
             score_keys: ["fluency", "lexical", "grammar", "pronunciation"],
             score_values: "Numeric IELTS band values from 0 to 9",
+            review_array_key: "reviews",
+            accepted_review_array_aliases: ["due_reviews", "review_results", "completed_reviews"],
+            review_item_keys: ["question_id", "stage", "completed", "completed_on", "next_stage", "next_review_date"],
             error_item_keys: ["wrong", "correct", "type"],
-            instruction: "Prefer these canonical keys. The Dashboard also accepts common long-form aliases for backward compatibility.",
+            instruction: "Use reviews for every completed D1/D3/D7/D14 item. The Dashboard also accepts due_reviews and other listed aliases for backward compatibility.",
           },
         },
         new_conversation_workflow: {
@@ -1575,8 +1678,10 @@
           "Do not place explanations after the SESSION_RESULT_V1 code block.",
         ],
         session_result_requirements: [
+          "Put every completed due or overdue Part 2 review in the reviews array with question_id, stage, completed: true, and completed_on.",
           "Every newly practised Part 2 topic must appear once in new_practice with its official question_id.",
           "When completed is true, new_practice must include both planned deep and transfer Part 2 IDs unless that curriculum day has no new Part 2.",
+          "When completed is true, reviews must include every due review actually completed that day. The Dashboard also accepts the legacy alias due_reviews.",
           "Never mark the curriculum day complete while omitting a Part 2 topic that was practised.",
         ],
       };
@@ -1683,6 +1788,20 @@
       if (unknownIds.length) throw new Error(`题号不存在：${[...new Set(unknownIds)].join("、")}`);
       if (new Set(submittedIds).size !== submittedIds.length) throw new Error("new_practice 中有重复题号");
 
+      const submittedReviews = sessionReviewItems(data);
+      const unknownReviewIds = submittedReviews
+        .map(review => review.question_id)
+        .filter(id => !getQuestion(id));
+      if (unknownReviewIds.length) {
+        throw new Error(`复习题号不存在：${[...new Set(unknownReviewIds)].join("、")}`);
+      }
+      const invalidReviewStages = submittedReviews
+        .map(review => review.stage)
+        .filter(stage => !["D1", "D3", "D7", "D14"].includes(stage));
+      if (invalidReviewStages.length) {
+        throw new Error(`复习阶段无效：${[...new Set(invalidReviewStages)].join("、")}`);
+      }
+
       if (data.completed) {
         const expectedIds = [plan.deepId, plan.transferId]
           .filter(Boolean)
@@ -1691,6 +1810,22 @@
         if (missingIds.length) {
           throw new Error(
             `Day ${plan.day} 已标记完成，但同步码缺少 ${missingIds.join("、")}。请让 ChatGPT 重新生成完整的 SESSION_RESULT_V1。`
+          );
+        }
+        const expectedReviews = parseReviewItems(plan).filter(review => (
+          !getQuestion(review.question_id)?.done.includes(review.stage)
+        ));
+        const completedReviewKeys = new Set(
+          submittedReviews
+            .filter(review => review.completed)
+            .map(review => `${review.question_id}:${review.stage}`),
+        );
+        const missingReviews = expectedReviews.filter(review => (
+          !completedReviewKeys.has(`${review.question_id}:${review.stage}`)
+        ));
+        if (missingReviews.length) {
+          throw new Error(
+            `Day ${plan.day} 已标记完成，但同步码缺少复习记录：${missingReviews.map(review => `${review.question_id} ${review.stage}`).join("、")}。`,
           );
         }
       }
@@ -1709,7 +1844,9 @@
         if (newlyCoveredIds.length) {
           changes.push(`Part 2 覆盖：${coverageCount()} → ${coverageCount() + newlyCoveredIds.length} / ${state.meta.totalPart2}`);
         }
-        (data.reviews || []).forEach(review => changes.push(`✓ ${review.question_id} 完成 ${review.stage}`));
+        sessionReviewItems(data)
+          .filter(review => review.completed)
+          .forEach(review => changes.push(`✓ ${review.question_id} 完成 ${review.stage}`));
         (data.new_practice || []).forEach(practice => changes.push(`＋ ${practice.question_id} 新增首练`));
         (data.errors || [])
           .map(normalizeErrorEntry)
@@ -1729,10 +1866,11 @@
     function applySync() {
       if (!pendingSync) return;
       const data = pendingSync;
-      (data.reviews || []).forEach(review => {
+      const completedReviews = sessionReviewItems(data).filter(review => review.completed);
+      completedReviews.forEach(review => {
         const question = getQuestion(review.question_id);
         if (!question) return;
-        if (review.completed && !question.done.includes(review.stage)) question.done.push(review.stage);
+        if (!question.done.includes(review.stage)) question.done.push(review.stage);
         if (review.status) question.status = review.status;
       });
       (data.new_practice || []).forEach(practice => {
@@ -1773,6 +1911,12 @@
           status: "completed",
           part1: part1CompletedAhead(plan) ? `${plan.part1}（已于 7/28 提前完成）` : (data.part1?.topics || []).join(" + "),
           part2: (data.new_practice || []).map(item => item.question_id),
+          reviews: completedReviews.map(review => ({
+            question_id: review.question_id,
+            stage: review.stage,
+            completed: true,
+            completed_on: review.completed_on ?? review.completedOn ?? data.date,
+          })),
           part3: plan.part3Questions,
           note: "Imported from ChatGPT Live · V6.1",
         });
